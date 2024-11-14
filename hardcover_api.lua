@@ -51,13 +51,13 @@ function HardcoverApi:findBook(title, author, identifiers, userId)
   }
   local isbnKey
 
-  if identifiers.isbn13 then
-    variables.isbn13 = identifiers.isbn13
-    isbnKey = 'isbn13'
-  elseif identifiers.isbn then
-    variables.isbn = identifiers.isbn
-    isbnKey = 'isbn'
-  end
+  --if identifiers.isbn13 then
+  --  variables.isbn13 = identifiers.isbn13
+  --  isbnKey = 'isbn13'
+  --elseif identifiers.isbn then
+  --  variables.isbn = identifiers.isbn
+  --  isbnKey = 'isbn'
+  --end
 
   local queryResults = {}
 
@@ -68,7 +68,7 @@ function HardcoverApi:findBook(title, author, identifiers, userId)
         editions(where: { ]] .. isbnKey ..  [[: { _eq: $isbn }}){
           id
           title
-          release_date
+          release_year
           book_id
           publisher {
             name
@@ -85,7 +85,7 @@ function HardcoverApi:findBook(title, author, identifiers, userId)
   end
 
   if not title then
-    return
+    return {}
   end
 
   --handling author vs title searching

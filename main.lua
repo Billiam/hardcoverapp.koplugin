@@ -34,7 +34,7 @@ function HardcoverApp:parseIdentifiers(identifiers)
     local str = string.gsub(line, "^[^%s]+%s*:%s*", "")
 
     if str then
-      local len = string.len(str)
+      local len = #str
       if len == 13 then
         result.isbn13 = str
       elseif len == 10 then
@@ -282,9 +282,9 @@ function HardcoverApp:getSubMenuItems()
     {
       text_func = function()
         if self:linked() then
-          return _("Link edition (already linked)")
+          return _("Link book (already linked)")
         else
-          return _("Link edition")
+          return _("Link book")
         end
       end,
       callback = function()
@@ -302,6 +302,7 @@ function HardcoverApp:getSubMenuItems()
         logger.warn(props, identifiers)
         local user_id = self:getUserId()
         -- TODO: what is format for props.authors
+
         local search_results = Api:findBook(props.title, props.authors, identifiers, user_id)
         logger.warn("Search", search_results)
         --local items

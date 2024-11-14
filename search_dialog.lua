@@ -14,7 +14,12 @@ local TitleBar = require("ui/widget/titlebar")
 local UIManager = require("ui/uimanager")
 local GestureRange = require("ui/gesturerange")
 local Screen = Device.screen
+local Menu = require("ui/widget/menu")
 local logger = require("logger")
+
+
+local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
+local footer_height = DGENERIC_ICON_SIZE + Size.line.thick
 
 local InputContainer = require("ui/widget/container/inputcontainer")
 
@@ -24,14 +29,98 @@ local HardcoverSearchDialog = InputContainer:extend {
   items = {}
 }
 
+--function HardcoverSearchDialog:bookItem(book)
+--  local face = Font:getFace("cfont", 14)
+--
+--  return TextWidget:new {
+--    text = book.title,
+--    face = face
+--  }
+--end
+
 function HardcoverSearchDialog:bookItem(book)
-  return TextWidget:new {
-    text = book.title,
-    face = face
+  local info = ""
+  local title = book.title
+
+  if book.contributions.author then
+    title = title .. " - " .. book.contributions.author.name
+  end
+
+  if #book.contributions > 0 then
+    local names = {}
+    for _, a in ipairs(book.contributions) do
+      table.insert(names, a.author.name)
+    end
+
+    title = title .. " - " .. table.concat(names, ", ")
+  end
+  if type(book.release_year) == "number" then
+    title = title .. " (" .. book.release_year  .. ")"
+  end
+
+  if book.users_read_count then
+    info = book.users_read_count .. " reads"
+  end
+
+  return {
+    text = title,
+    mandatory = info,
+    mandatory_dim = true,
   }
 end
 
 function HardcoverSearchDialog:init()
+  if Device:isTouchDevice() then
+    self.ges_events.Tap = {
+      GestureRange:new {
+        ges = "tap",
+        range = Geom:new {
+          x = 0,
+          y = 0,
+          w = Screen:getWidth(),
+          h = Screen:getHeight(),
+        }
+      }
+    }
+  end
+
+  local items = {}
+  logger.warn("dialog", self.items)
+  for _, book in ipairs(self.items) do
+    table.insert(items, self:bookItem(book))
+  end
+
+  self.width = self.width or Screen:getWidth() - Screen:scaleBySize(50)
+  self.width = math.min(self.width, Screen:scaleBySize(600))
+  self.height = Screen:getHeight() - Screen:scaleBySize(50)
+
+  self.menu = Menu:new {
+    title = "Select book",
+    item_table = items,
+    width = self.width,
+    height = self.height,
+
+    --title_bar_fm_style = true,
+    --is_popout = true,
+    onMenuSelect = function(item, pos)
+      logger.warn("selected: ", pos)
+    end,
+    close_callback = function()
+      self:onClose()
+    end
+  }
+
+  self.container = CenterContainer:new{
+    dimen = Screen:getSize(),
+    self.menu,
+  }
+  self.menu.show_parent = self.container
+
+  self[1] = self.container
+end
+
+
+function HardcoverSearchDialog:init_old()
   if Device:hasKeys() then
     self.key_events.Close = { { Device.input.group.Back } }
   end
@@ -50,7 +139,6 @@ function HardcoverSearchDialog:init()
   end
 
   local items = {}
-  local face = Font:getFace("cfont", 14)
   logger.warn("dialog", self.items)
   for _, book in ipairs(self.items) do
 
@@ -72,7 +160,7 @@ function HardcoverSearchDialog:init()
 
   self.pagination = Paginator:new{
     width = self.width,
-    height = Screen:scaleBySize(8),
+    height = footer_height,
     percentage = 0,
     progress = 0,
   }
@@ -84,13 +172,12 @@ function HardcoverSearchDialog:init()
     title = "Search results",
     title_multilines = true,
     bottom_v_padding = self.bottom_v_padding,
-    info_text = "Select an item to link",
+    info_text = "Select book",
     --left_icon = self.title_bar_left_icon,
     --left_icon_tap_callback = self.title_bar_left_icon_tap_callback,
     close_callback = function() self:onClose() end,
     show_parent = self,
   }
-
 
   self[1] = CenterContainer:new {
     dimen = { w = Screen:getWidth(), h = Screen:getHeight() },
@@ -104,20 +191,21 @@ function HardcoverSearchDialog:init()
       VerticalGroup:new{
         align = "left",
         self.title_bar,
-        self.pagination,
         ListView:new{
           padding = 0,
           items = items,
           width = self.width,
-          height = self.height-self.pagination:getSize().h,
+          height = self.height - self.pagination:getSize().h,
           page_update_cb = function(curr_page, total_pages)
-            --self.pagination:setProgress(curr_page/total_pages)
-            ---- self.page_text:setText(curr_page .. "/" .. total_pages)
-            --UIManager:setDirty(self, function()
-            --  return "ui", self.popup.dimen
-            --end)
+            logger.warn("Pages", curr_page, total_pages)
+            self.pagination:setProgress(curr_page, total_pages)
+            --self.page_text:setText(curr_page .. "/" .. total_pages)
+            UIManager:setDirty(self, function()
+              return "ui", self.dimen
+            end)
           end
         },
+        self.pagination
       }
     }
   }
