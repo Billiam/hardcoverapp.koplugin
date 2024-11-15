@@ -2,6 +2,8 @@
 @module koplugin.HardcoverApp
 --]]--
 
+
+--TODO: trap request loading
 local Dispatcher = require("dispatcher")  -- luacheck:ignore
 local Device = require("device")
 local UIManager = require("ui/uimanager")
@@ -308,8 +310,8 @@ function HardcoverApp:getSubMenuItems()
         --self.menu_items.hardcover.text = "loading..."
         --self.page_text:setText(self.page_text:text_func(), self.page_text.width)
 
-        --local search_results = Api:findBook(props.title, props.authors, identifiers, user_id)
-        --UIManager:close(message)
+        local search_results = Api:findBook(props.title, props.authors, identifiers, user_id)
+        UIManager:close(message)
         --logger.warn("Search", search_results)
         --local items
         --
@@ -320,7 +322,7 @@ function HardcoverApp:getSubMenuItems()
         --end
         --
         -- different UI parent or different child?
-        --UIManager:show(SearchDialog:new { items = search_results.books })
+        UIManager:show(SearchDialog:new { items = search_results.books })
 
         --self:bookSearchList()
       end,

@@ -262,33 +262,30 @@ function ListMenuItem:update()
     --local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
 --logger.warn("bookinfo", bookinfo)
     local bookinfo = self.entry
-    logger.warn("bookinfo", bookinfo)
 
-
-    if bookinfo and self.do_cover_image and not bookinfo.ignore_cover and not self.file_deleted then
-      if bookinfo.cover_fetched then
-        if bookinfo.has_cover and not self.menu.no_refresh_covers then
-          if BookInfoManager.isCachedCoverInvalid(bookinfo, cover_specs) then
-            -- there is a thumbnail, but it's smaller than is needed for new grid dimensions,
-            -- and it would be ugly if scaled up to the required size:
-            -- do as if not found to force a new extraction with our size
-            if bookinfo.cover_bb then
-              bookinfo.cover_bb:free()
-            end
-            bookinfo = nil
-          end
-        end
-        -- if not has_cover, book has no cover, no need to try again
-      else
-        -- cover was not fetched previously, do as if not found
-        -- to force a new extraction
-        logger.warn("forcing new extraction")
-        bookinfo = nil
-      end
-    end
+    --if bookinfo and self.do_cover_image and not bookinfo.ignore_cover and not self.file_deleted then
+    --  if bookinfo.cover_fetched then
+    --    if bookinfo.has_cover and not self.menu.no_refresh_covers then
+    --      if BookInfoManager.isCachedCoverInvalid(bookinfo, cover_specs) then
+    --        -- there is a thumbnail, but it's smaller than is needed for new grid dimensions,
+    --        -- and it would be ugly if scaled up to the required size:
+    --        -- do as if not found to force a new extraction with our size
+    --        if bookinfo.cover_bb then
+    --          bookinfo.cover_bb:free()
+    --        end
+    --        bookinfo = nil
+    --      end
+    --    end
+    --    -- if not has_cover, book has no cover, no need to try again
+    --  else
+    --    -- cover was not fetched previously, do as if not found
+    --    -- to force a new extraction
+    --    logger.warn("forcing new extraction")
+    --    bookinfo = nil
+    --  end
+    --end
 
     if bookinfo then -- This book is known
-logger.warn(" \n\nFOUND BOOK INFO\n\n   ")
       self.bookinfo_found = true
       local cover_bb_used = false
 
@@ -303,6 +300,7 @@ logger.warn(" \n\nFOUND BOOK INFO\n\n   ")
           cover_bb_used = true
           -- Let ImageWidget do the scaling and give us the final size
           local _, _, scale_factor = BookInfoManager.getCachedCoverSize(bookinfo.cover_w, bookinfo.cover_h, max_img_w, max_img_h)
+
           local wimage = ImageWidget:new{
             image = bookinfo.cover_bb,
             scale_factor = scale_factor,

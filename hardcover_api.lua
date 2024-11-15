@@ -115,6 +115,7 @@ function HardcoverApi:findBook(title, author, identifiers, userId)
             alternate_names
           }
         }
+        cached_image
         user_books(where: { user_id: { _eq: $userId }}) {
           id
         }
