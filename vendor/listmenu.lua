@@ -259,7 +259,11 @@ function ListMenuItem:update()
     self.file_deleted = self.entry.dim -- entry with deleted file from History or selected file from FM
     local fgcolor = self.file_deleted and Blitbuffer.COLOR_DARK_GRAY or nil
 
-    local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
+    --local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
+--logger.warn("bookinfo", bookinfo)
+    local bookinfo = self.entry
+    logger.warn("bookinfo", bookinfo)
+
 
     if bookinfo and self.do_cover_image and not bookinfo.ignore_cover and not self.file_deleted then
       if bookinfo.cover_fetched then
@@ -278,11 +282,13 @@ function ListMenuItem:update()
       else
         -- cover was not fetched previously, do as if not found
         -- to force a new extraction
+        logger.warn("forcing new extraction")
         bookinfo = nil
       end
     end
 
     if bookinfo then -- This book is known
+logger.warn(" \n\nFOUND BOOK INFO\n\n   ")
       self.bookinfo_found = true
       local cover_bb_used = false
 
@@ -688,6 +694,7 @@ function ListMenuItem:update()
       end
 
     else -- bookinfo not found
+logger.warn("\n\n NO BOOK INFO \n\n")
       if self.init_done then
         -- Non-initial update(), but our widget is still not found:
         -- it does not need to change, so avoid remaking the same widget
@@ -975,6 +982,7 @@ function ListMenu:_recalculateDimen()
 end
 
 function ListMenu:_updateItemsBuildUI()
+logger.warn("Received update items")
   -- Build our list
   local line_widget = LineWidget:new{
     dimen = Geom:new{ w = self.width or self.screen_w, h = Size.line.thin },
@@ -993,7 +1001,8 @@ function ListMenu:_updateItemsBuildUI()
       item_shortcut = self.item_shortcuts[idx]
       shortcut_style = (idx < 11 or idx > 20) and "square" or "grey_square"
     end
-
+--local dump = require("dump")
+--logger.warn("entry", dump(entry))
     local item_tmp = ListMenuItem:new{
       height = self.item_height,
       width = self.item_width,

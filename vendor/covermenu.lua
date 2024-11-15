@@ -169,19 +169,19 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
       })
     end
     -- Launch it at nextTick, so UIManager can render us smoothly
-    UIManager:nextTick(function()
-      local launched = BookInfoManager:extractInBackground(files_to_index)
-      if not launched then -- fork failed (never experienced that, but let's deal with it)
-        -- Cancel scheduled update, as it won't get any result
-        if self.items_update_action then
-          UIManager:unschedule(self.items_update_action)
-          self.items_update_action = nil
-        end
-        UIManager:show(InfoMessage:new{
-          text = _("Start-up of background extraction job failed.\nPlease restart KOReader or your device.")
-        })
-      end
-    end)
+    --UIManager:nextTick(function()
+    --  local launched = BookInfoManager:extractInBackground(files_to_index)
+    --  if not launched then -- fork failed (never experienced that, but let's deal with it)
+    --    -- Cancel scheduled update, as it won't get any result
+    --    if self.items_update_action then
+    --      UIManager:unschedule(self.items_update_action)
+    --      self.items_update_action = nil
+    --    end
+    --    UIManager:show(InfoMessage:new{
+    --      text = _("Start-up of background extraction job failed.\nPlease restart KOReader or your device.")
+    --    })
+    --  end
+    --end)
 
     -- Scheduled update action
     self.items_update_action = function()

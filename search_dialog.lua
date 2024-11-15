@@ -16,7 +16,7 @@ local GestureRange = require("ui/gesturerange")
 local Screen = Device.screen
 local Menu = require("ui/widget/menu")
 local logger = require("logger")
-
+local SearchMenu = require("searchmenu")
 
 local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
 local footer_height = DGENERIC_ICON_SIZE + Size.line.thick
@@ -41,20 +41,19 @@ local HardcoverSearchDialog = InputContainer:extend {
 function HardcoverSearchDialog:bookItem(book)
   local info = ""
   local title = book.title
+  local authors = {}
 
   if book.contributions.author then
-    title = title .. " - " .. book.contributions.author.name
+    table.insert(authors, book.contributions.author)
   end
 
   if #book.contributions > 0 then
-    local names = {}
     for _, a in ipairs(book.contributions) do
-      table.insert(names, a.author.name)
+      table.insert(authors, a.author.name)
     end
-
-    title = title .. " - " .. table.concat(names, ", ")
   end
-  if type(book.release_year) == "number" then
+
+  if book.release_year then
     title = title .. " (" .. book.release_year  .. ")"
   end
 
@@ -62,12 +61,33 @@ function HardcoverSearchDialog:bookItem(book)
     info = book.users_read_count .. " reads"
   end
 
-  return {
-    text = title,
+  local result = {
+    title = title,
+
     mandatory = info,
     mandatory_dim = true,
+    file = "hardcover-" .. book.id,
+    -- TODO: Temporary until URL loading implemented
+    ignore_cover = true,
+    _no_provider = true,
   }
+
+  if book.pages then
+    result.pages = book.pages
+  end
+
+  if book.book_series.position then
+    result.series = book.book_series.series.name
+    result.series_index = book.book_series.position
+  end
+
+  if #authors > 0 then
+    result.authors = table.concat(authors, "\n")
+  end
+
+  return result
 end
+
 
 function HardcoverSearchDialog:init()
   if Device:isTouchDevice() then
@@ -85,7 +105,58 @@ function HardcoverSearchDialog:init()
   end
 
   local items = {}
-  logger.warn("dialog", self.items)
+  --logger.warn("dialog", self.items)
+  for _, book in ipairs(self.items) do
+    table.insert(items, self:bookItem(book))
+  end
+
+  self.width = self.width or Screen:getWidth() - Screen:scaleBySize(50)
+  self.width = math.min(self.width, Screen:scaleBySize(600))
+  self.height = Screen:getHeight() - Screen:scaleBySize(50)
+
+
+  self.menu = SearchMenu:new {
+    title = "Select book",
+    item_table = items,
+    width = self.width,
+    height = self.height,
+
+    --title_bar_fm_style = true,
+    --is_popout = true,
+    onMenuSelect = function(item, pos)
+      logger.warn("selected: ", pos)
+    end,
+    close_callback = function()
+      self:onClose()
+    end
+  }
+
+  self.container = CenterContainer:new{
+    dimen = Screen:getSize(),
+    self.menu,
+  }
+  self.menu.show_parent = self.container
+
+  self[1] = self.container
+end
+
+function HardcoverSearchDialog:menu_init()
+  if Device:isTouchDevice() then
+    self.ges_events.Tap = {
+      GestureRange:new {
+        ges = "tap",
+        range = Geom:new {
+          x = 0,
+          y = 0,
+          w = Screen:getWidth(),
+          h = Screen:getHeight(),
+        }
+      }
+    }
+  end
+
+  local items = {}
+  --logger.warn("dialog", self.items)
   for _, book in ipairs(self.items) do
     table.insert(items, self:bookItem(book))
   end

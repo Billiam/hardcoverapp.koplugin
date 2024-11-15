@@ -13,6 +13,7 @@ local DataStorage = require("datastorage")
 local Api = require("hardcover_api")
 local SearchDialog = require("search_dialog")
 local Paginator = require("paginator")
+local InfoMessage = require("ui/widget/infomessage")
 
 local Screen = Device.screen
 
@@ -101,7 +102,7 @@ function HardcoverApp:onPageUpdate(page)
   local props = self.view.document:getProps()
 
   --logger.warn(props.title, props.authors)
-  logger.warn(props)
+  --logger.warn(props)
 
   self.state.page = page
   --selfdebouncedPageUpdate()
@@ -127,7 +128,7 @@ function HardcoverApp:startSync()
 end
 
 function HardcoverApp:_updateBookSetting(filename, key, value)
-  logger.warn("Book: ", filename, key, value)
+  --logger.warn("Book: ", filename, key, value)
 
   local books = self.settings:child("books")
   local setting = books:child(filename)
@@ -140,7 +141,7 @@ function HardcoverApp:_updateBookSetting(filename, key, value)
 end
 
 function HardcoverApp:_updateSetting(key, value)
-  logger.warn("Setting: ", key, value)
+  --logger.warn("Setting: ", key, value)
   self.settings:saveSetting(key, value)
   self.settings:flush()
 end
@@ -299,12 +300,17 @@ function HardcoverApp:getSubMenuItems()
         --end
         local props = self.view.document:getProps()
         local identifiers = self:parseIdentifiers(props.identifiers)
-        logger.warn(props, identifiers)
+        --logger.warn(props, identifiers)
         local user_id = self:getUserId()
         -- TODO: what is format for props.authors
+        local message = InfoMessage:new { text = "loading..." }
+        UIManager:show(message)
+        --self.menu_items.hardcover.text = "loading..."
+        --self.page_text:setText(self.page_text:text_func(), self.page_text.width)
 
-        local search_results = Api:findBook(props.title, props.authors, identifiers, user_id)
-        logger.warn("Search", search_results)
+        --local search_results = Api:findBook(props.title, props.authors, identifiers, user_id)
+        --UIManager:close(message)
+        --logger.warn("Search", search_results)
         --local items
         --
         --if search_results.edition then
@@ -314,7 +320,7 @@ function HardcoverApp:getSubMenuItems()
         --end
         --
         -- different UI parent or different child?
-        UIManager:show(SearchDialog:new { items = search_results.books })
+        --UIManager:show(SearchDialog:new { items = search_results.books })
 
         --self:bookSearchList()
       end,

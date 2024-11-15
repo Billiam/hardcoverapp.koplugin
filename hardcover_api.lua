@@ -27,10 +27,10 @@ function HardcoverApi:query(query, parameters)
     source = ltn12.source.string(json.encode(requestBody)),
     sink = ltn12.sink.table(responseBody),
   }
-  logger.warn(json.encode(requestBody))
-  logger.warn(responseBody, code)
+  --logger.warn(json.encode(requestBody))
+  --logger.warn(responseBody, code)
   if code == 200 then
-    local data = json.decode(table.concat(responseBody))
+    local data = json.decode(table.concat(responseBody), json.decode.simple)
     if data.data then
       return data.data
     end
@@ -102,6 +102,13 @@ function HardcoverApi:findBook(title, author, identifiers, userId)
         title
         release_year
         users_read_count
+        pages
+        book_series {
+          position
+          series {
+            name
+          }
+        }
         contributions {
           author {
             name
@@ -123,7 +130,7 @@ function HardcoverApi:findBook(title, author, identifiers, userId)
 
   sortBooks(books.books, author)
 
-  logger.warn(books.books)
+  --logger.warn(books.books)
 
   return {
     books = books.books
