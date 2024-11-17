@@ -234,6 +234,14 @@ function HardcoverApp:pendingBookVisibility()
   return self:_readBookSetting(self.view.document.file, "visibility")
 end
 
+function HardcoverApp:clearPendingBookVisibility()
+  return self:_updateBookSetting(self.view.document.file, { _delete = { "visibility" }})
+end
+
+function HardcoverApp:setPendingBookVisibility(visibility)
+  return self:_updateBookSetting(self.view.document.file, { visibility = visibility })
+end
+
 function HardcoverApp:defaultVisibility()
   return self.settings:readSetting("default_visibility")
 end
@@ -338,6 +346,9 @@ function HardcoverApp:buildDialog(title, items, active_item)
   end
 end
 
+function HardcoverApp:cacheUserBook()
+  self.book_status = Api:findUserBook(self:getLinkedBookId(), self:getUserId()) or {}
+end
 
 function HardcoverApp:getSubMenuItems()
   return {
@@ -424,7 +435,7 @@ function HardcoverApp:getSubMenuItems()
         return self:bookLinked()
       end,
       sub_item_table_func = function()
-        self.book_status = Api:findUserBook(self:getLinkedBookId(), self:getUserId()) or {}
+        self:cacheUserBook()
         return self:getStatusSubMenuItems()
       end,
     },
@@ -434,7 +445,7 @@ function HardcoverApp:getSubMenuItems()
         return self:bookLinked()
       end,
       sub_item_table_func = function()
-        self.book_status = Api:findUserBook(self:getLinkedBookId(), self:getUserId()) or {}
+        self:cacheUserBook()
         return self:getVisibilitySubMenuItems()
       end,
       separator = true
@@ -462,6 +473,23 @@ function HardcoverApp:effectiveVisibilitySetting()
   end
 end
 
+function HardcoverApp:updateBookStatus(status, privacy_setting_id)
+  local book_id = self:getLinkedBookId()
+  privacy_setting_id = privacy_setting_id or self:effectiveVisibilitySetting()
+
+  self.book_status = Api:updateRead(book_id, status, privacy_setting_id) or {}
+  self:clearPendingBookVisibility()
+end
+
+function HardcoverApp:changeBookVisibility(visibility)
+  self:cacheUserBook()
+  if self.book_status.id then
+    self:updateBookStatus(self.book_status.status_id, visibility)
+  else
+    self:setPendingBookVisibility(visibility)
+  end
+end
+
 function HardcoverApp:getVisibilitySubMenuItems()
   return {
     {
@@ -469,6 +497,9 @@ function HardcoverApp:getVisibilitySubMenuItems()
       checked_func = function()
         local visibility = self:effectiveVisibilitySetting()
         return visibility == PRIVACY_PUBLIC or visibility == nil
+      end,
+      callback = function()
+        self:changeBookVisibility(PRIVACY_PUBLIC)
       end,
       radio = true,
 
@@ -478,12 +509,18 @@ function HardcoverApp:getVisibilitySubMenuItems()
       checked_func = function()
         return self:effectiveVisibilitySetting() == PRIVACY_FOLLOWS
       end,
+      callback = function()
+        self:changeBookVisibility(PRIVACY_FOLLOWS)
+      end,
       radio = true
     },
     {
       text = _("Private"),
       checked_func = function()
         return self:effectiveVisibilitySetting() == PRIVACY_PRIVATE
+      end,
+      callback = function()
+        self:changeBookVisibility(PRIVACY_PRIVATE)
       end,
       radio = true
     },
@@ -534,12 +571,18 @@ function HardcoverApp:getStatusSubMenuItems()
       checked_func = function()
         return self.book_status.status_id == STATUS_TO_READ
       end,
+      callback = function()
+        self:updateBookStatus(STATUS_TO_READ)
+      end,
       radio = true
     },
     {
       text = _(ICON_OPEN_BOOK .. " Currently Reading"),
       checked_func = function()
         return self.book_status.status_id == STATUS_READING
+      end,
+      callback = function()
+        self:updateBookStatus(STATUS_READING)
       end,
       radio = true
     },
@@ -548,12 +591,18 @@ function HardcoverApp:getStatusSubMenuItems()
       checked_func = function()
         return self.book_status.status_id == STATUS_FINISHED
       end,
+      callback = function()
+        self:updateBookStatus(STATUS_FINISHED)
+      end,
       radio = true
     },
     {
       text = _(ICON_STOP_CIRCLE .. " Did Not Finish"),
       checked_func = function()
         return self.book_status.status_id == STATUS_DNF
+      end,
+      callback = function()
+        self:updateBookStatus(STATUS_DNF)
       end,
       radio = true,
       separator = true
@@ -563,9 +612,14 @@ function HardcoverApp:getStatusSubMenuItems()
       enabled_func = function()
         return self.book_status.status_id ~= nil
       end,
-      callback = function()
-        -- remove read
-      end
+      callback = function(menu_instance)
+        local result = Api:removeRead(self.book_status.id)
+        if result then
+          self.book_status = {}
+          menu_instance:updateItems()
+        end
+      end,
+      keep_menu_open = true,
     }
   }
 end

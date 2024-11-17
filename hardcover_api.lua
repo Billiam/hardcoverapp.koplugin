@@ -54,6 +54,18 @@ fragment EditionParts on editions {
   users_count
 }]]
 
+local user_book_fragment = [[
+fragment UserBookParts on user_books {
+  id
+  status_id
+  privacy_setting_id
+}]]
+
+-- TODO: Remove when search API ready
+function escapeLike(str)
+  return str:gsub("%%", "\\%%"):gsub("_", "\\_")
+end
+
 function HardcoverApi:query(query, parameters)
   local requestBody = {
     query = query,
@@ -68,7 +80,8 @@ function HardcoverApi:query(query, parameters)
     source = ltn12.source.string(json.encode(requestBody)),
     sink = ltn12.sink.table(responseBody),
   }
-
+  --logger.warn(requestBody)
+  --logger.warn(responseBody)
   if code == 200 then
     local data = json.decode(table.concat(responseBody), json.decode.simple)
     if data.data then
@@ -80,9 +93,6 @@ function HardcoverApi:query(query, parameters)
   else
     logger.err("Error code", code, responseBody)
   end
-end
-
-function HardcoverApi:mutation(query, args)
 end
 
 function HardcoverApi:hydrateBooks(ids, user_id)
@@ -198,7 +208,6 @@ function HardcoverApi:findEditions(book_id, user_id)
   end
   return mapped_results
 end
-
 
 -- TODO: determine what needs to be saved
   -- Adding a new book read only requires a book, but implies an edition
@@ -385,12 +394,41 @@ function HardcoverApi:updatePage(edition, page)
 
 
 end
--- progress is stored by edition ID. Need to know currrent page for edition
--- no way to match page to percent
-function HardcoverApi:updateProgress(edition, progress)
 
+function HardcoverApi:updateRead(book_id, status_id, privacy_setting_id)
+  local query = [[
+    mutation ($object: UserBookCreateInput!) {
+      insert_user_book(object: $object) {
+        error
+        user_book {
+          ...UserBookParts
+        }
+      }
+    }
+  ]] .. user_book_fragment
+
+  local update_args = {
+    book_id = book_id,
+    privacy_setting_id = privacy_setting_id or 1,
+    status_id = status_id
+  }
+  local result = self:query(query, { object = update_args })
+  if result and result.insert_user_book then
+    return result.insert_user_book.user_book
+  end
 end
-function HardcoverApi:markReading(edition)
+
+function HardcoverApi:removeRead(user_book_id)
+  local query = [[
+    mutation($id: Int!) {
+      delete_user_book(id: $id) {
+        id
+      }
+    }
+  ]]
+  return self:query(query, { id = user_book_id })
+end
+
 --mutation StartBookProgress($bookId: Int!, $pages: Int, $editionId: Int, $startedAt: date) {
 --  insert_user_book_read(user_book_id: $bookId, user_book_read: {
 --    progress_pages: $pages,
@@ -402,29 +440,9 @@ function HardcoverApi:markReading(edition)
 --}
 
 -- status id 2
-end
-function HardcoverApi:markFinished(edition)
--- status id 3
---mutation FinishBookProgress($id: Int!, $pages: Int, $editionId: Int, $startedAt: date, $finishedAt: date) {
---  update_user_book_read(id: $id, object: {
---    progress_pages: $pages,
---    edition_id: $editionId,
---    started_at: $startedAt,
---    finished_at: $finishedAt,
---  }) {
---    id
---  }
---}
-end
+--end
+
 function HardcoverApi:setRating(edition)
-end
-
-function HardcoverApi:markDidNotFinish(edition)
-  -- status id 5
-end
---want to read: status id 1
-
-function HardcoverApi:setPrivacy(privacy)
 end
 
 function HardcoverApi:findUserBook(book_id, user_id)
@@ -432,11 +450,10 @@ function HardcoverApi:findUserBook(book_id, user_id)
   local read_query = [[
     query ($id: Int!, $userId: Int!) {
       user_books(where: { book_id: { _eq: $id }, user_id: { _eq: $userId }}) {
-        id
-        status_id
+        ...UserBookParts
       }
     }
-  ]]
+  ]] .. user_book_fragment
 
   local results = self:query(read_query, { id = book_id, userId = user_id })
   if not results or not results.user_books then
@@ -454,10 +471,5 @@ end
 function HardcoverApi:me()
   return self:query("{ me { id, name }}").me[1]
 end
-
-function escapeLike(str)
-  return str:gsub("%%", "\\%%"):gsub("_", "\\_")
-end
-
 
 return HardcoverApi
