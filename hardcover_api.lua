@@ -58,7 +58,15 @@ local user_book_fragment = [[
 fragment UserBookParts on user_books {
   id
   status_id
+  edition_id
   privacy_setting_id
+  user_book_reads(order_by: {id: asc}) {
+    id
+    started_at
+    finished_at
+    progress_pages
+    edition_id
+  }
 }]]
 
 -- TODO: Remove when search API ready
@@ -86,8 +94,9 @@ function HardcoverApi:query(query, parameters)
     local data = json.decode(table.concat(responseBody), json.decode.simple)
     if data.data then
       return data.data
-    elseif data.errors then
-      logger.err("Query error", data.errors)
+    elseif data.errors or data.error then
+      local err = data.errors or data.error
+      logger.err("Query error", err)
       logger.err("Query", requestBody)
     end
   else
@@ -380,22 +389,84 @@ function sortBooks(list, author)
   end)
 end
 
-function HardcoverApi:updatePage(edition, page)
- -- may be edition specific
---mutation UpdateBookProgress($id: Int!, $pages: Int, $editionId: Int, $startedAt: date) {
---  update_user_book_read(id: $id, object: {
---    progress_pages: $pages,
---    edition_id: $editionId,
---    started_at: $startedAt,
---  }) {
---    id
---  }
---}
+function HardcoverApi:createRead(user_book_id, edition_id, page, started_at)
+  local query = [[
+    mutation InsertUserBookRead($id: Int!, $pages: Int, $editionId: Int, $startedAt: date) {
+      insert_user_book_read(user_book_id: $id, user_book_read: {
+        progress_pages: $pages,
+        edition_id: $editionId,
+        started_at: $startedAt,
+      }) {
+        error
+        user_book_read {
+          id
+          started_at
+          finished_at
+          edition_id
+          progress_pages
+          user_book {
+            id
+            status_id
+            edition_id
+            privacy_setting_id
+          }
+        }
+      }
+    }
+  ]]
 
+  local result = self:query(query, { id = user_book_id, pages = page, editionId = edition_id, startedAt = started_at })
+  if result and result.update_user_book_read then
+    local user_book_read = result.insert_user_book_read.user_book_read
 
+    local user_book_result = user_book_read.user_book
+    user_book_read.user_book = nil
+    user_book_result.user_book_reads = { user_book_read }
+
+    return user_book_result
+  end
 end
 
-function HardcoverApi:updateRead(book_id, status_id, privacy_setting_id, edition_id)
+function HardcoverApi:updatePage(user_read_id, edition_id, page, started_at)
+  local query = [[
+    mutation UpdateBookProgress($id: Int!, $pages: Int, $editionId: Int, $startedAt: date) {
+      update_user_book_read(id: $id, object: {
+        progress_pages: $pages,
+        edition_id: $editionId,
+        started_at: $startedAt,
+      }) {
+        error
+        user_book_read {
+          id
+          started_at
+          finished_at
+          edition_id
+          progress_pages
+          user_book {
+            id
+            status_id
+            edition_id
+            privacy_setting_id
+          }
+        }
+      }
+    }
+  ]]
+
+  local result = self:query(query, { id = user_read_id, pages = page, editionId = edition_id, startedAt = started_at})
+
+  if result and result.update_user_book_read then
+    local user_book_read = result.update_user_book_read.user_book_read
+
+    local user_book_result = user_book_read.user_book
+    user_book_read.user_book = nil
+    user_book_result.user_book_reads = { user_book_read }
+
+    return user_book_result
+  end
+end
+
+function HardcoverApi:updateUserBook(book_id, status_id, privacy_setting_id, edition_id)
   local query = [[
     mutation ($object: UserBookCreateInput!) {
       insert_user_book(object: $object) {
@@ -423,6 +494,7 @@ end
 function HardcoverApi:removeRead(user_book_id)
   local query = [[
     mutation($id: Int!) {
+      error
       delete_user_book(id: $id) {
         id
       }

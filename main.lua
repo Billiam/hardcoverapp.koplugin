@@ -3,15 +3,18 @@
 --]]--
 
 --TODO: trap request loading
+local Api = require("hardcover_api")
+local DataStorage = require("datastorage")
 local Dispatcher = require("dispatcher")  -- luacheck:ignore
+local LuaSettings = require("frontend/luasettings")
+local SearchDialog = require("search_dialog")
+local SpinWidget = require("ui/widget/spinwidget")
+local T = require("ffi/util").template
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 local logger = require("logger")
-local LuaSettings = require("frontend/luasettings")
-local DataStorage = require("datastorage")
-local Api = require("hardcover_api")
-local SearchDialog = require("search_dialog")
+local os = require("os")
 
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",
@@ -234,6 +237,10 @@ function HardcoverApp:pendingBookVisibility()
   return self:_readBookSetting(self.view.document.file, "visibility")
 end
 
+function HardcoverApp:pages()
+  return self:_readBookSetting(self.view.document.file, "pages")
+end
+
 function HardcoverApp:clearPendingBookVisibility()
   return self:_updateBookSetting(self.view.document.file, { _delete = { "visibility" }})
 end
@@ -248,31 +255,31 @@ end
 
 function HardcoverApp:linkBook(book)
   local filename = self.view.document.file
+
   local delete = {}
-  if not book.book_id then
-    table.insert(delete, "book_id")
-  end
-  if not book.edition_id then
-    table.insert(delete, "edition_id")
-  end
-  if not book.edition_format then
-    table.insert(delete, "edition_format")
+  local clear_keys = {"book_id", "edition_id", "edition_format", "pages", "title"}
+  for _,key in ipairs(clear_keys) do
+    if book[key] == nil then
+      table.insert(delete, key)
+    end
   end
 
   local new_settings = {
     book_id = book.book_id,
     edition_id = book.edition_id,
     edition_format = book.edition_format,
+    pages = book.pages,
     title = book.title,
     _delete = delete
   }
+  logger.warn("New setting", new_settings)
 
   self:_updateBookSetting(filename, new_settings)
 
   self:cacheUserBook()
   if book.book_id and self.book_status.id then
     if new_settings.edition_id and new_settings.edition_id ~= self.book_status.edition_id then
-      self.book_status = Api:updateRead(new_settings.book_id, self.book_status.status_id, self.book_status.privacy_setting_id, new_settings.edition_id) or {}
+      self.book_status = Api:updateUserBook(new_settings.book_id, self.book_status.status_id, self.book_status.privacy_setting_id, new_settings.edition_id) or {}
     end
   end
   -- get user reads for book
@@ -485,7 +492,7 @@ function HardcoverApp:updateBookStatus(status, privacy_setting_id)
 
   privacy_setting_id = privacy_setting_id or self:effectiveVisibilitySetting()
 
-  self.book_status = Api:updateRead(book_id, status, privacy_setting_id, edition_id) or {}
+  self.book_status = Api:updateUserBook(book_id, status, privacy_setting_id, edition_id) or {}
   self:clearPendingBookVisibility()
 end
 
@@ -613,7 +620,6 @@ function HardcoverApp:getStatusSubMenuItems()
         self:updateBookStatus(STATUS_DNF)
       end,
       radio = true,
-      separator = true
     },
     {
       text = _(ICON_TRASH .. " Remove"),
@@ -628,7 +634,58 @@ function HardcoverApp:getStatusSubMenuItems()
         end
       end,
       keep_menu_open = true,
-    }
+      separator = true
+    },
+    {
+      text_func = function()
+        local reads = self.book_status.user_book_reads
+        local current_page = reads and reads[#reads].progress_pages or 0
+        local max_pages = self:pages()
+
+        if not max_pages then
+          max_pages = "???"
+        end
+
+        return T(_("Update page: %1 of %2"), current_page, max_pages)
+      end,
+      enabled_func = function()
+        return self.book_status.status_id == STATUS_READING and self:pages()
+      end,
+      callback = function(menu_instance)
+        local reads = self.book_status.user_book_reads
+        local current_read = reads and reads[#reads]
+        local current_page = current_read and current_read.progress_pages or 0
+        local max_pages = self:pages()
+
+        local spinner = SpinWidget:new{
+          value = current_page,
+          value_min = 0,
+          value_max = max_pages,
+          value_step = 1,
+          value_hold_step = 20,
+          ok_text = _("Set page"),
+          title_text = _("Set current page"),
+          callback = function(spin)
+            local page = spin.value
+            local result
+
+            if current_read then
+              result = Api:updatePage(current_read.id, current_read.edition_id, page, current_read.started_at)
+            else
+              local start_date = os.date("%Y-%m-%d")
+              result = Api:createRead(self.book_status.id, self.book_status.edition_id, page, start_date)
+            end
+
+            if result then
+              self.book_status = result
+              menu_instance:updateItems()
+            end
+          end
+        }
+        UIManager:show(spinner)
+      end,
+      keep_menu_open = true
+    },
   }
 end
 
