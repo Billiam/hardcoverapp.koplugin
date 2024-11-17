@@ -260,7 +260,6 @@ function ListMenuItem:update()
     local fgcolor = self.file_deleted and Blitbuffer.COLOR_DARK_GRAY or nil
 
     --local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
---logger.warn("bookinfo", bookinfo)
     local bookinfo = self.entry
 
     --if bookinfo and self.do_cover_image and not bookinfo.ignore_cover and not self.file_deleted then
@@ -377,6 +376,10 @@ function ListMenuItem:update()
       -- right widget, first line
       local directory, filename = util.splitFilePathName(self.filepath) -- luacheck: no unused
       local filename_without_suffix, filetype = filemanagerutil.splitFileNameType(filename)
+      if bookinfo.filetype then
+        filetype = bookinfo.filetype
+      end
+
       local fileinfo_str
       if bookinfo._no_provider then
         -- for unspported files: don't show extension on the right,
@@ -692,7 +695,6 @@ function ListMenuItem:update()
       end
 
     else -- bookinfo not found
-logger.warn("\n\n NO BOOK INFO \n\n")
       if self.init_done then
         -- Non-initial update(), but our widget is still not found:
         -- it does not need to change, so avoid remaking the same widget
@@ -980,7 +982,6 @@ function ListMenu:_recalculateDimen()
 end
 
 function ListMenu:_updateItemsBuildUI()
-logger.warn("Received update items")
   -- Build our list
   local line_widget = LineWidget:new{
     dimen = Geom:new{ w = self.width or self.screen_w, h = Size.line.thin },
@@ -999,8 +1000,7 @@ logger.warn("Received update items")
       item_shortcut = self.item_shortcuts[idx]
       shortcut_style = (idx < 11 or idx > 20) and "square" or "grey_square"
     end
---local dump = require("dump")
---logger.warn("entry", dump(entry))
+
     local item_tmp = ListMenuItem:new{
       height = self.item_height,
       width = self.item_width,

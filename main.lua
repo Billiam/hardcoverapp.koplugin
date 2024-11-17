@@ -2,10 +2,8 @@
 @module koplugin.HardcoverApp
 --]]--
 
-
 --TODO: trap request loading
 local Dispatcher = require("dispatcher")  -- luacheck:ignore
-local Device = require("device")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
@@ -14,10 +12,6 @@ local LuaSettings = require("frontend/luasettings")
 local DataStorage = require("datastorage")
 local Api = require("hardcover_api")
 local SearchDialog = require("search_dialog")
-local Paginator = require("paginator")
-local InfoMessage = require("ui/widget/infomessage")
-
-local Screen = Device.screen
 
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",
@@ -27,25 +21,85 @@ local HardcoverApp = WidgetContainer:extend {
   width = nil
 }
 
-function HardcoverApp:parseIdentifiers(identifiers)
+local STATUS_TO_READ = 1
+local STATUS_READING = 2
+local STATUS_FINISHED = 3
+local STATUS_DNF = 5
+
+local PRIVACY_PUBLIC = 1
+local PRIVACY_FOLLOWS = 2
+local PRIVACY_PRIVATE = 3
+
+-- nf-fa-book
+local ICON_PHYSICAL_BOOK = "\u{F02D}"
+-- nf-fa-tablet
+local ICON_TABLET = "\u{F10A}"
+-- nf-fa-headphones
+local ICON_HEADPHONES = "\u{F025}"
+-- nf-fa-bookmark_o
+local ICON_BOOKMARK = "\u{f097}"
+-- nf-fae-book_open_o
+local ICON_OPEN_BOOK = "\u{E28B}"
+-- nf-oct-check
+local ICON_CHECKMARK = "\u{F42E}"
+-- nf-fa-stop_circle
+local ICON_STOP_CIRCLE = "\u{F28D}"
+-- nf-fa-trash_can
+local ICON_TRASH = "\u{F014}"
+
+local book_formats = {
+  [ICON_PHYSICAL_BOOK] = {"Paperback", "Hardcover", "Mass Market Paperback", "Library Binding", "Physical Book", ""},
+  [ICON_TABLET] = {"Kindle Edition", "ebook", "Kindle"},
+  [ICON_HEADPHONES] = {"Audio CD", "Audiobook", "Audio Cassette", "Audible Audio"}
+}
+
+local function parseIdentifiers(identifiers)
   result = {}
+
   if not identifiers then
     return result
   end
 
+  -- TODO: are multiple identifiers comma/semicolon delimited?
   for line in identifiers:gmatch("%s*([^%s]+)%s*") do
-    local str = string.gsub(line, "^[^%s]+%s*:%s*", "")
+    -- check for hardcover: and hardcover-edition:
+    local hc = string.match(line, "hardcover:([%w_-]+)")
+    if hc then
+      identifiers.book_slug = hc
+    end
 
-    if str then
-      local len = #str
-      if len == 13 then
-        result.isbn13 = str
-      elseif len == 10 then
-        result.isbn = str
+    local hc_edition = string.match(line, "hardcover-edition:(%d+)")
+
+    if hc_edition then
+      identifiers.edition_id = hc_edition
+    end
+
+    if not hc and not hc_edition then
+      -- strip prefix
+      local str = string.gsub(line, "^[^%s]+%s*:%s*", "")
+
+      if str then
+        local len = #str
+
+        if len == 13 then
+          result.isbn_13 = str
+        elseif len == 10 then
+          result.isbn_10 = str
+        end
       end
     end
   end
   return result
+end
+
+local function formatIcon(format)
+  for icon, list in pairs(book_formats) do
+    for _, type in ipairs(list) do
+      if format == type then
+        return icon
+      end
+    end
+  end
 end
 
 function HardcoverApp:onDispatcherRegisterActions()
@@ -58,56 +112,38 @@ function HardcoverApp:init()
     pos = nil,
     search_results = {}
   }
-
-
   self.settings = LuaSettings:open(("%s/%s"):format(DataStorage:getSettingsDir(), "hardcoversync_settings.lua"))
 
   self:onDispatcherRegisterActions()
 
   self.ui.menu:registerToMainMenu(self)
-
-  --self:me()
-
-  --self:buildDialog()
-
-  --UIManager:forceRePaint()
 end
-
-
-function HardcoverApp:buildDialog(pagination)
-
-end
-
---function HardcoverApp:addToMainMenu(menu_items)
---  menu_items.hardcover = {
---    text = _("Hardcover"),
---    -- in which menu this should be appended
---    sorting_hint = "more_tools",
---    -- a callback when tapping
---    callback = function()
---      UIManager:show(InfoMessage:new {
---        text = _("Hello, plugin world"),
---      })
---    end,
---  }
---end
-
---function HardcoverApp:onHelloWorld()
---  local popup = InfoMessage:new {
---    text = _("Hello World"),
---  }
---  UIManager:show(popup)
---end
 
 -- TODO: debounce updates
 function HardcoverApp:onPageUpdate(page)
+  -- when updating, we may have an update ID already
+  -- but there may be an existing user read for this book
+  -- if no review id found, fetch existing user read for this book id
+  -- if no existing user read, create new status (in progress)
+
   local props = self.view.document:getProps()
 
-  --logger.warn(props.title, props.authors)
-  --logger.warn(props)
-
+  -- TODO: translate page to percent or live total pages
   self.state.page = page
-  --selfdebouncedPageUpdate()
+  --self debouncedPageUpdate()
+end
+
+function HardcoverApp:onReaderReady()
+logger.warn("Reader ready")
+end
+function HardcoverApp:onDocumentClose()
+logger.warn("Document closed")
+end
+function HardcoverApp:onSuspend()
+logger.warn("Begin suspend")
+end
+function HardcoverApp:onResume()
+  logger.warn("Resumed")
 end
 
 function HardcoverApp:debouncedPageUpdate()
@@ -121,55 +157,110 @@ function HardcoverApp:updatePage()
   --end
 end
 
-function HardcoverApp:stopSync()
-  self:_updateBookSetting(self.view.document.file, "sync", false)
+function HardcoverApp:_readBookSetting(filename, key)
+  local books = self.settings:readSetting("books")
+  if not books then return end
+  if not books[filename] then return end
+  return books[filename][key]
 end
 
-function HardcoverApp:startSync()
-  self:_updateBookSetting(self.view.document.file,"sync", true)
-end
+function HardcoverApp:_updateBookSetting(filename, config)
+  local books = self.settings:readSetting("books", {})
+  if not books[filename] then
+    books[filename] = {}
+  end
+  local book_setting = books[filename]
 
-function HardcoverApp:_updateBookSetting(filename, key, value)
-  --logger.warn("Book: ", filename, key, value)
-
-  local books = self.settings:child("books")
-  local setting = books:child(filename)
-
-  setting.saveSetting(key, value)
-  books:saveSetting(filename, setting)
-  self.settings:saveSetting("books", books)
+  for k,v in pairs(config) do
+    if k == "_delete" then
+      for _,name in ipairs(v) do
+        book_setting[name] = nil
+      end
+    else
+      book_setting[k] = v
+    end
+  end
 
   self.settings:flush()
 end
 
 function HardcoverApp:_updateSetting(key, value)
-  --logger.warn("Setting: ", key, value)
   self.settings:saveSetting(key, value)
   self.settings:flush()
 end
 
-function HardcoverApp:onPosUpdate(pos)
-  self.state.pos = pos
+function HardcoverApp:stopSync()
+  self:_updateBookSetting(self.view.document.file, { _delete = { "sync" }})
 end
 
---function HardcoverApp:me()
---  return Api:me()
---end
-
-function HardcoverApp:linked()
-  return self.settings:child("books"):child(self.view.document.file):readSetting("editionId") ~= nil
+function HardcoverApp:startSync()
+  self:_updateBookSetting(self.view.document.file,{ sync = true })
 end
 
+function HardcoverApp:editionLinked()
+  return self:_readBookSetting(self.view.document.file, "edition_id") ~= nil
+end
+
+function HardcoverApp:readLinked()
+  return self:_readBookSetting(self.view.document.file, "read_id") ~= nil
+end
+
+-- TODO: Cache until book closed/opened/linked/unlinked
 function HardcoverApp:bookLinked()
-  return self.settings:child("books"):child(self.view.document.file):readSetting("bookId") ~= nil
+  return self:getLinkedBookId() ~= nil
 end
 
-function HardcoverApp:updateLinked()
-  return self.settings:child("books"):child(self.view.document.file):readSetting("readId") ~= nil
+function HardcoverApp:getLinkedTitle()
+  return self:_readBookSetting(self.view.document.file, "title")
 end
 
-function HardcoverApp:enabled()
-  return self.settings:child("books"):child(self.view.document.file):readSetting("sync")
+function HardcoverApp:getLinkedBookId()
+  return self:_readBookSetting(self.view.document.file, "book_id")
+end
+
+function HardcoverApp:getLinkedEditionFormat()
+  return self:_readBookSetting(self.view.document.file, "edition_format")
+end
+
+function HardcoverApp:getLinkedEditionId()
+  return self:_readBookSetting(self.view.document.file, "edition_id")
+end
+
+function HardcoverApp:syncEnabled()
+  return self:_readBookSetting(self.view.document.file, "sync") == true
+end
+
+function HardcoverApp:pendingBookVisibility()
+  return self:_readBookSetting(self.view.document.file, "visibility")
+end
+
+function HardcoverApp:defaultVisibility()
+  return self.settings:readSetting("default_visibility")
+end
+
+function HardcoverApp:linkBook(book)
+  local filename = self.view.document.file
+  local delete = {}
+  if not book.book_id then
+    table.insert(delete, "book_id")
+  end
+  if not book.edition_id then
+    table.insert(delete, "edition_id")
+  end
+  if not book.edition_format then
+    table.insert(delete, "edition_format")
+  end
+  self:_updateBookSetting(filename, {
+    book_id = book.book_id,
+    edition_id = book.edition_id,
+    edition_format = book.edition_format,
+    title = book.title,
+    _delete = delete
+  })
+end
+
+function HardcoverApp:clearLink()
+  self:_updateBookSetting(self.view.document.file, { _delete = { 'book_id', 'title', 'edition_id' }})
 end
 
 function HardcoverApp:getUserId()
@@ -183,6 +274,12 @@ function HardcoverApp:getUserId()
   return user_id
 end
 
+
+function HardcoverApp:onPosUpdate(pos)
+  self.state.pos = pos
+end
+
+
 function HardcoverApp:addToMainMenu(menu_items)
   if not self.view then
     return
@@ -193,150 +290,128 @@ function HardcoverApp:addToMainMenu(menu_items)
     --sorting_hint = "navi",
     --reader = true,
     text_func = function()
-      return self:linked() and _("Hardcover: \u{F0C1}") or _("Hardcover") -- F127 -> broken link F0C1 link
+      return self:bookLinked() and _("Hardcover: \u{F0C1}") or _("Hardcover") -- F127 -> broken link F0C1 link
     end,
-    --checked_func = function() return self:_enabled() end,
-    --  callback = function(menu)
-    --    --if settings.sync then
-    --
-    --    --end
-    --  end,
-    --
-    sub_item_table_func = function() return this:getSubMenuItems() end,
-    --callback = function(menu)
-
-      -- otherwise use submenu?
-      --if not self:linked() then
-        -- open link list
-      --end
-    --end,
+    sub_item_table_func = function() return self:getSubMenuItems() end,
   }
-
-  --callback = function(menu)
-  --  local DateTimeWidget = require("ui/widget/datetimewidget")
-  --  local autoturn_seconds = G_reader_settings:readSetting("autoturn_timeout_seconds", 30)
-  --  local autoturn_minutes = math.floor(autoturn_seconds * (1/60))
-  --  autoturn_seconds = autoturn_seconds % 60
-  --  local autoturn_spin = DateTimeWidget:new {
-  --    title_text = _("Autoturn time"),
-  --    info_text = _("Enter time in minutes and seconds."),
-  --    min = autoturn_minutes,
-  --    min_max = 60 * 24, -- maximum one day
-  --    min_default = 0,
-  --    sec = autoturn_seconds,
-  --    sec_default = 30,
-  --    keep_shown_on_apply = true,
-  --    ok_text = _("Set timeout"),
-  --    cancel_text = _("Disable"),
-  --    cancel_callback = function()
-  --      self.enabled = false
-  --      G_reader_settings:makeFalse("autoturn_enabled")
-  --      self:_unschedule()
-  --      menu:updateItems()
-  --      self.onResume = nil
-  --    end,
-  --    ok_always_enabled = true,
-  --    callback = function(t)
-  --      self.autoturn_sec = t.min * 60 + t.sec
-  --      G_reader_settings:saveSetting("autoturn_timeout_seconds", self.autoturn_sec)
-  --      self.enabled = true
-  --      G_reader_settings:makeTrue("autoturn_enabled")
-  --      self:_unschedule()
-  --      self:_start()
-  --      menu:updateItems()
-  --      self.onResume = self._onResume
-  --    end,
-  --  }
-  --  UIManager:show(autoturn_spin)
-  --end,
-  --hold_callback = function(menu)
-  --  local SpinWidget = require("ui/widget/spinwidget")
-  --  local curr_items = G_reader_settings:readSetting("autoturn_distance") or 1
-  --  local autoturn_spin = SpinWidget:new {
-  --    value = curr_items,
-  --    value_min = -20,
-  --    value_max = 20,
-  --    precision = "%.2f",
-  --    value_step = .1,
-  --    value_hold_step = .5,
-  --    ok_text = _("Set distance"),
-  --    title_text = _("Scrolling distance"),
-  --    callback = function(autoturn_spin)
-  --      self.autoturn_distance = autoturn_spin.value
-  --      G_reader_settings:saveSetting("autoturn_distance", autoturn_spin.value)
-  --      if self.enabled then
-  --        self:_unschedule()
-  --        self:_start()
-  --      end
-  --      menu:updateItems()
-  --    end,
-  --  }
-  --  UIManager:show(autoturn_spin)
-  --end,
-  --}
 end
 
 function HardcoverApp:bookSearchList()
 
 end
 
+function HardcoverApp:findBookOptions(force_search)
+  local props = self.view.document:getProps()
+
+  local identifiers = parseIdentifiers(props.identifiers)
+
+  local user_id = self:getUserId()
+
+  if not force_search then
+    local book_lookup = Api:findBookByIdentifiers(identifiers, user_id)
+    if book_lookup then
+      return { book_lookup }
+    end
+  end
+  -- TODO: When search api is ready, parse title from filename if no title available
+
+  return Api:findBooks(props.title, props.authors, user_id)
+end
+
+function HardcoverApp:buildDialog(title, items, active_item)
+  if self.search_dialog then
+    self.search_dialog:setItems(title, items, active_item)
+  else
+    self.search_dialog = SearchDialog:new {
+      title = title,
+      items = items,
+      active_item = active_item,
+      select_book_cb = function(book)
+        self.search_dialog:onClose()
+
+        self:linkBook(book)
+        if self.menu_instance then
+          self.menu_instance:updateItems()
+        end
+      end
+    }
+  end
+end
+
+
 function HardcoverApp:getSubMenuItems()
   return {
     {
       text_func = function()
-        if self:linked() then
-          return _("Link book (already linked)")
+        if self:bookLinked() then
+          -- need to show link information somehow. Maybe store title
+          local title = self:getLinkedTitle()
+          if not title then
+            title = self:getLinkedBookId()
+          end
+          return _("Linked book: " .. title)
         else
           return _("Link book")
         end
       end,
-      callback = function()
-        logger.warn("Opening container?")
-
-        -- conditions: everything already linked
-
-        -- book linked, but not edition
-        --logger.warn(props)
-        --if true then
-        --  return nil
-        --end
-        local props = self.view.document:getProps()
-        local identifiers = self:parseIdentifiers(props.identifiers)
-        --logger.warn(props, identifiers)
-        local user_id = self:getUserId()
-        -- TODO: what is format for props.authors
-        local message = InfoMessage:new { text = "loading..." }
-        UIManager:show(message)
-        --self.menu_items.hardcover.text = "loading..."
-        --self.page_text:setText(self.page_text:text_func(), self.page_text.width)
-
-        local search_results = Api:findBook(props.title, props.authors, identifiers, user_id)
-        UIManager:close(message)
-        --logger.warn("Search", search_results)
-        --local items
-        --
-        --if search_results.edition then
-        --  -- only one edition, allow manual overriding (title search)
-        --elseif search_results.books then
-        --  items = search_results.books
-        --end
-        --
-        -- different UI parent or different child?
-        UIManager:show(SearchDialog:new { items = search_results.books })
-
-        --self:bookSearchList()
+      hold_callback = function(menu_instance)
+        if self:bookLinked() then
+          self:clearLink()
+          menu_instance:updateItems()
+        end
       end,
+      keep_menu_open = true,
+      callback = function(menu_instance)
+        local force_search = self:bookLinked()
+        local books = self:findBookOptions(force_search)
+        self:buildDialog("Select book", books, { book_id = self:getLinkedBookId() })
+        UIManager:show(self.search_dialog)
+        self.menu_instance = menu_instance
+      end,
+    },
+    {
+      -- TODO: show edition format
+      text_func = function()
+
+        local edition_format = self:getLinkedEditionFormat()
+        local title = "Change edition"
+
+        if edition_format then
+          local suffix = formatIcon(edition_format)
+          if not suffix then
+            suffix = edition_format
+          end
+          title = title .. ": " .. suffix
+        elseif self:getLinkedEditionId() then
+          return title .. ": " .. ICON_PHYSICAL_BOOK
+        end
+
+        return _(title)
+      end,
+      enabled_func = function()
+        return self:bookLinked()
+      end,
+      callback = function(menu_instance)
+        local editions = Api:findEditions(self:getLinkedBookId(), self:getUserId())
+        logger.warn("editions", editions)
+        -- need to show "active" here, and prioritize current edition if available
+        self:buildDialog("Select edition", editions, { edition_id = self:getLinkedEditionId() })
+        UIManager:show(self.search_dialog)
+        self.menu_instance = menu_instance
+      end,
+      keep_menu_open = true,
+      separator = true
     },
     {
       text = _("Track progress"),
       checked_func = function()
-        return self:enabled()
+        return self:syncEnabled()
       end,
       enabled_func = function()
-        return self:linked()
+        return self:bookLinked()
       end,
       callback = function()
-        if setting.sync then
+        if self:syncEnabled() then
           self:stopSync()
         else
           self:startSync()
@@ -344,29 +419,155 @@ function HardcoverApp:getSubMenuItems()
       end,
     },
     {
-      text = _("Mark started"),
+      text = _("Update status"),
       enabled_func = function()
-        return self:linked()
+        return self:bookLinked()
+      end,
+      sub_item_table_func = function()
+        self.book_status = Api:findUserBook(self:getLinkedBookId(), self:getUserId()) or {}
+        return self:getStatusSubMenuItems()
       end,
     },
     {
-      text = _("Mark finished"),
+      text = _("Set status visibility"),
       enabled_func = function()
-        return self:linked()
+        return self:bookLinked()
       end,
+      sub_item_table_func = function()
+        self.book_status = Api:findUserBook(self:getLinkedBookId(), self:getUserId()) or {}
+        return self:getVisibilitySubMenuItems()
+      end,
+      separator = true
     },
     {
-      text = _("Mark to-read"),
-      enabled_func = function()
-        return self:linked()
+      text = _("Settings"),
+      sub_item_table_func = function() return self:getSettingsSubMenuItems() end,
+    },
+  }
+end
+
+function HardcoverApp:effectiveVisibilitySetting()
+  if self.book_status.privacy_setting_id ~= nil then
+    return self.book_status.privacy_setting_id
+  end
+
+  local pending_visibility = self:pendingBookVisibility()
+  if pending_visibility ~= nil then
+    return pending_visibility
+  end
+
+  local default_visibility = self:defaultVisibility()
+  if default_visibility ~= nil then
+    return defaultVisibility
+  end
+end
+
+function HardcoverApp:getVisibilitySubMenuItems()
+  return {
+    {
+      text = _("Public"),
+      checked_func = function()
+        local visibility = self:effectiveVisibilitySetting()
+        return visibility == PRIVACY_PUBLIC or visibility == nil
       end,
+      radio = true,
+
     },
     {
-      text = _("Mark did-not-finish"),
-      enabled_func = function()
-        return self:linked()
+      text = _("Follows"),
+      checked_func = function()
+        return self:effectiveVisibilitySetting() == PRIVACY_FOLLOWS
       end,
+      radio = true
+    },
+    {
+      text = _("Private"),
+      checked_func = function()
+        return self:effectiveVisibilitySetting() == PRIVACY_PRIVATE
+      end,
+      radio = true
+    },
+  }
+end
+
+function HardcoverApp:getStatusSubMenuItems()
+  return {
+    {
+      text = _(ICON_BOOKMARK .. " Want To Read"),
+      checked_func = function()
+        return self.book_status.status_id == STATUS_TO_READ
+      end,
+      radio = true
+    },
+    {
+      text = _(ICON_OPEN_BOOK .. " Currently Reading"),
+      checked_func = function()
+        return self.book_status.status_id == STATUS_READING
+      end,
+      radio = true
+    },
+    {
+      text = _(ICON_CHECKMARK .. " Read"),
+      checked_func = function()
+        return self.book_status.status_id == STATUS_FINISHED
+      end,
+      radio = true
+    },
+    {
+      text = _(ICON_STOP_CIRCLE .. " Did Not Finish"),
+      checked_func = function()
+        return self.book_status.status_id == STATUS_DNF
+      end,
+      radio = true,
+      separator = true
+    },
+    {
+      text = _(ICON_TRASH .. " Remove"),
+      enabled_func = function()
+        return self.book_status.status_id ~= nil
+      end,
+      callback = function()
+        -- remove read
+      end
     }
+  }
+end
+
+function HardcoverApp:getSettingsSubMenuItems()
+  return {
+    {
+      text = "Automatically link by ISBN",
+      checked_func = function()
+        return false
+      end,
+    },
+    {
+      text = "Automatically link by Hardcover identifiers",
+      checked_func = function()
+        return false
+      end,
+    },
+    {
+      text = "Automatically link by title and author",
+      checked_func = function()
+        return false
+      end,
+    },
+    {
+      text = "Update frequency",
+      -- every (x) minutes
+      -- before exit/sleep? (when done reading)
+        -- when book closed, maybe opened
+    },
+    {
+      text = "Always track progress by default",
+      checked_func = function()
+        return false
+      end,
+    },
+    {
+      text = _("Default status visibility"),
+    },
   }
 end
 

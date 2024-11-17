@@ -13,6 +13,47 @@ local headers = {
 local HardcoverApi = {
 }
 
+local book_fragment = [[
+fragment BookParts on books {
+  id
+  title
+  release_year
+  users_read_count
+  pages
+  book_series {
+    position
+    series {
+      name
+    }
+  }
+  contributions {
+    author {
+      name
+      alternate_names
+    }
+  }
+  cached_image
+  user_books(where: { user_id: { _eq: $userId }}) {
+    id
+  }
+}]]
+
+local edition_fragment = book_fragment .. [[
+fragment EditionParts on editions {
+  id
+  book {
+    ...BookParts
+  }
+  cached_image
+  edition_format
+  pages
+  publisher {
+    name
+  }
+  release_date
+  users_count
+}]]
+
 function HardcoverApi:query(query, parameters)
   local requestBody = {
     query = query,
@@ -27,64 +68,231 @@ function HardcoverApi:query(query, parameters)
     source = ltn12.source.string(json.encode(requestBody)),
     sink = ltn12.sink.table(responseBody),
   }
-  --logger.warn(json.encode(requestBody))
-  --logger.warn(responseBody, code)
+
   if code == 200 then
     local data = json.decode(table.concat(responseBody), json.decode.simple)
     if data.data then
       return data.data
+    elseif data.errors then
+      logger.err("Query error", data.errors)
+      logger.err("Query", requestBody)
     end
+  else
+    logger.err("Error code", code, responseBody)
   end
 end
 
 function HardcoverApi:mutation(query, args)
 end
 
+function HardcoverApi:hydrateBooks(ids, user_id)
+  -- hydrate ids
+  local bookQuery = [[{
+    query ($ids: [Int!], $userId: Int!) {
+      books(where: { _id: { _in: $ids }}) {
+        ...BookParts
+      }
+    }
+  }]] .. book_fragment
+
+  local books = self:query(bookQuery, { ids = ids, userId = user_id })
+
+  if books and #books > 1 then
+    local id_order = {}
+
+    for i,v in ipairs(ids) do
+      id_order[i] = v
+    end
+
+    -- sort books by original ID order
+    table.sort(books, function (a, b)
+      return id_order[a.id] < id_order[b.id]
+    end)
+  end
+
+  return books
+end
+
+function HardcoverApi:hydrateBookFromEdition(edition_id, user_id)
+  local editionSearch = [[
+    query ($id Int!, $userId: Int!) {
+      editions(where: { id: { _eq: $id }}) {
+        ...EditionParts
+      }
+    }]] .. edition_fragment
+
+  local editions = self:query(editionSearch, { id = edition_id, userId = user_id })
+  if editions and editions.editions and #editions.editions > 0 then
+    return self:normalizedEdition(editions.editions[1])
+  end
+end
+
+function HardcoverApi:findBookBySlug(slug, user_id)
+  local slugSearch = [[
+    query ($slug: String!, $userId: Int!) {
+      books(where: { slug: { _eq: $slug }}) {
+        ...BookParts
+      }
+    }]] .. book_fragment
+
+  local books = self:query(slugSearch, { slug = slug, userId = user_id })
+  if books and books.books and #books.books > 0 then
+    return books.books[1]
+  end
+end
+
+function HardcoverApi:findEditions(book_id, user_id)
+  local edition_search = [[
+    query ($id: Int!, $userId: Int!) {
+      editions(where: { book_id: { _eq: $id }, _or: [{edition_format: { _is_null: true }}, {edition_format: { _nin: ["Audio CD", "Audiobook", "Audio Cassette", "Audible Audio"] }} ]},
+      limit: 50,
+      order_by: { users_count: desc_nulls_last }) {
+        ...EditionParts
+      }
+    }]] .. edition_fragment
+
+  local editions = self:query(edition_search, { id = book_id, userId = user_id })
+  if not editions or not editions.editions then return end
+  local edition_list = editions.editions
+
+  if #edition_list > 1 then
+    -- prefer editions with user reads
+    local edition_ids = {}
+    for _,edition in ipairs(edition_list) do
+      table.insert(edition_ids, edition.id)
+    end
+
+    local read_search = [[
+      query ($ids: [Int!], $userId: Int!) {
+        user_books(where: { edition_id: { _in: $ids }, user_id: { _eq: $userId }}) {
+          edition_id
+        }
+      }
+    ]]
+
+    local read_editions = self:query(read_search, { ids = edition_ids, userId = user_id })
+    local read_index = {}
+    for _, read in ipairs(read_editions) do
+      read_index[read.edition_id] = true
+    end
+
+    table.sort(edition_list,function (a, b)
+      -- sort by user reads
+      local read_a = read_index[a.id]
+      local read_b = read_index[b.id]
+
+      if read_a ~= read_b then
+        return read_a == true
+      end
+
+      if a.users_count ~= b.users_count then
+        return a.users_count > b.users_count
+      end
+    end)
+
+  end
+
+  local mapped_results = {}
+  for _, edition in ipairs(edition_list) do
+    table.insert(mapped_results, self:normalizedEdition(edition))
+  end
+  return mapped_results
+end
+
+
 -- TODO: determine what needs to be saved
   -- Adding a new book read only requires a book, but implies an edition
     -- starting progress only requires a book id. Edition ID is optional
     -- update book progress requires an id. The previous status id?
-
-function HardcoverApi:findBook(title, author, identifiers, userId)
-  local variables = {
-    userId = userId
-  }
-  local isbnKey
-
-  --if identifiers.isbn13 then
-  --  variables.isbn13 = identifiers.isbn13
-  --  isbnKey = 'isbn13'
-  --elseif identifiers.isbn then
-  --  variables.isbn = identifiers.isbn
-  --  isbnKey = 'isbn'
-  --end
-
-  local queryResults = {}
-
-  if isbnKey then
-  -- TODO: where not audiobook
-    local editionSearch = [[{
-      query ($isbn) {
-        editions(where: { ]] .. isbnKey ..  [[: { _eq: $isbn }}){
-          id
-          title
-          release_year
-          book_id
-          publisher {
-            name
-          }
-        }
+function HardcoverApi:search(title, author, userId, page)
+  page = page or 1
+  local query = [[{
+    query ($query: String!, $page: Int!) {
+      search(query: $query, per_page: 25, page: $page, query_type: "Book") {
+        ids
       }
     }]]
-    local editions = self:query(editionSearch, queryResults)
-    if editions then
-      return {
-        edition = editions[1]
-      }
+  local search = title .. " " .. author
+  local results = self:query(query, { query = search, page = page})
+  if not results then
+    return {}
+  end
+
+  local ids = {}
+
+  for i,v in ipairs(results) do
+    table.insert(ids, v.id)
+  end
+
+  return self:hydrateBooks(ids, userId)
+end
+
+function HardcoverApi:findBookByIdentifiers(identifiers, user_id)
+  local isbnKey
+
+  if identifiers.edition_id then
+    local book = self:hydrateBookFromEdition(identifiers.edition_id, user_id)
+    if book then
+      return book
     end
   end
 
-  if not title then
+  if identifiers.book_slug then
+    local book = self:findBookBySlug({ identifiers.book_slug }, user_id)
+    if book then
+      return book
+    end
+  end
+
+  if identifiers.isbn_13 then
+    isbnKey = 'isbn_13'
+  elseif identifiers.isbn_10 then
+    isbnKey = 'isbn_10'
+  end
+
+  if isbnKey then
+    local editionSearch = [[
+      query ($isbn: String!, $userId: Int!) {
+        editions(where: { ]] .. isbnKey ..  [[: { _eq: $isbn }}) {
+          ...EditionParts
+        }
+      }]] .. edition_fragment
+
+    local editions = self:query(editionSearch, { isbn = tostring(identifiers[isbnKey]), userId = user_id  })
+    if editions and editions.editions and #editions.editions > 0 then
+      return self:normalizedEdition(editions.editions[1])
+    end
+  end
+end
+
+function HardcoverApi:normalizedEdition(edition)
+  local result = edition.book
+
+  result.edition_id = edition.id
+  result.edition_format = edition.edition_format
+  result.cached_image = edition.cached_image
+  result.publisher = edition.publisher
+  if edition.release_date then
+    local year = edition.release_date:match("^(%d%d%d%d)-")
+    result.release_year = year
+  else
+    result.release_year = nil
+  end
+  result.reads = edition.reads
+  result.pages = edition.pages
+  result.filetype = edition.edition_format or "physical book"
+  result.users_count = edition.users_count
+
+  return result
+end
+
+
+function HardcoverApi:findBooks(title, author, userId)
+  local variables = {
+    userId = userId
+  }
+
+  if not title or string.match(title, "^%s*$") then
     return {}
   end
 
@@ -98,30 +306,11 @@ function HardcoverApi:findBook(title, author, identifiers, userId)
         where: { title: { _ilike: $title }}
         order_by: { users_read_count: desc_nulls_last }
       ) {
-        id
-        title
-        release_year
-        users_read_count
-        pages
-        book_series {
-          position
-          series {
-            name
-          }
-        }
-        contributions {
-          author {
-            name
-            alternate_names
-          }
-        }
-        cached_image
-        user_books(where: { user_id: { _eq: $userId }}) {
-          id
-        }
+        ...BookParts
       }
     }
-  ]]
+  ]] .. book_fragment
+
   variables.title = "%" .. escapeLike(title:gsub(":.+", ""):gsub("^%s+", ""):gsub("%s+$", "")) .. "%"
 
   local books = self:query(queryString, variables)
@@ -131,11 +320,7 @@ function HardcoverApi:findBook(title, author, identifiers, userId)
 
   sortBooks(books.books, author)
 
-  --logger.warn(books.books)
-
-  return {
-    books = books.books
-  }
+  return books.books
 end
 
 function sortBooks(list, author)
@@ -173,40 +358,18 @@ function sortBooks(list, author)
     if ia.user_read ~= ib.user_read then
       return ia.user_read
     end
+
     if ia.author ~= ib.author then
-      return ia.author
+      return ia.author == true
     end
+
     if a.users_read_count ~= b.users_read_count then
       return a.users_read_count > b.users_read_count
     end
+
     return a.title < b.title
   end)
 end
-
-function HardcoverApi:findEditions(book_id)
-  if not book_id then
-    return
-  end
-
-  --{"operationName":"FindEditionsForBook","variables":{"bookId":382700},"query":"query FindEditionsForBook($bookId: Int!) {\n  editions(where: {book_id: {_eq: $bookId}}, order_by: {users_count: desc}) {\n    ...EditionFragment\n    __typename\n  }\n}\n\nfragment EditionFragment on editions {\n  id\n  title\n  asin\n  isbn10: isbn_10\n  isbn13: isbn_13\n  releaseDate: release_date\n  releaseYear: release_year\n  pages\n  audioSeconds: audio_seconds\n  readingFormatId: reading_format_id\n  usersCount: users_count\n  cachedImage: cached_image\n  editionFormat: edition_format\n  editionInformation: edition_information\n  language {\n    id\n    language\n    code: code2\n    __typename\n  }\n  readingFormat: reading_format {\n    format\n    __typename\n  }\n  country {\n    name\n    __typename\n  }\n  publisher {\n    ...PublisherFragment\n    __typename\n  }\n  __typename\n}\n\nfragment PublisherFragment on publishers {\n  id\n  name\n  slug\n  editionsCount: editions_count\n  __typename\n}"}
-  -- prefer books on users lists
-  local queryString = [[{
-    query ($bookId: Int!) {
-      editions(limit: 10, where { book_id: { _eq: $bookId }}, order_by: [{users_read_count: desc_nulls_last}]) {
-        id
-        title
-        release_year
-        book_id
-        publisher {
-          name
-        }
-      }
-    }
-  }]]
-
-  return self:query(queryString, { bookId = book_id })
-end
-
 
 function HardcoverApi:updatePage(edition, page)
  -- may be edition specific
@@ -255,93 +418,46 @@ function HardcoverApi:markFinished(edition)
 end
 function HardcoverApi:setRating(edition)
 end
+
 function HardcoverApi:markDidNotFinish(edition)
   -- status id 5
 end
 --want to read: status id 1
 
-function HardcoverApi:me()
-  return self:query("{ me { id, name }}").me[1]
+function HardcoverApi:setPrivacy(privacy)
+end
+
+function HardcoverApi:findUserBook(book_id, user_id)
+  -- this may not be adequate, as (it's possible) there could be more than one read in progress? Maybe?
+  local read_query = [[
+    query ($id: Int!, $userId: Int!) {
+      user_books(where: { book_id: { _eq: $id }, user_id: { _eq: $userId }}) {
+        id
+        status_id
+      }
+    }
+  ]]
+
+  local results = self:query(read_query, { id = book_id, userId = user_id })
+  if not results or not results.user_books then
+    return {}
+  end
+
+  return results.user_books[1]
+end
+
+-- most recent?
+function HardcoverApi:findUserBookRead(edition_id, user_id)
 end
 
 
--- may not be needed since arguments may be passed as separate JSON
-function escapeString(str)
-  return str:gsub("\\", "\\\\"):gsub('"', '\\"')
+function HardcoverApi:me()
+  return self:query("{ me { id, name }}").me[1]
 end
 
 function escapeLike(str)
   return str:gsub("%%", "\\%%"):gsub("_", "\\_")
 end
 
--- find editions for book
---{"operationName":"FindEditionsForBook","variables":{"bookId":382700},"query":"query FindEditionsForBook($bookId: Int!) {\n  editions(where: {book_id: {_eq: $bookId}}, order_by: {users_count: desc}) {\n    ...EditionFragment\n    __typename\n  }\n}\n\nfragment EditionFragment on editions {\n  id\n  title\n  asin\n  isbn10: isbn_10\n  isbn13: isbn_13\n  releaseDate: release_date\n  releaseYear: release_year\n  pages\n  audioSeconds: audio_seconds\n  readingFormatId: reading_format_id\n  usersCount: users_count\n  cachedImage: cached_image\n  editionFormat: edition_format\n  editionInformation: edition_information\n  language {\n    id\n    language\n    code: code2\n    __typename\n  }\n  readingFormat: reading_format {\n    format\n    __typename\n  }\n  country {\n    name\n    __typename\n  }\n  publisher {\n    ...PublisherFragment\n    __typename\n  }\n  __typename\n}\n\nfragment PublisherFragment on publishers {\n  id\n  name\n  slug\n  editionsCount: editions_count\n  __typename\n}"}
-
-
---fragment EditionFragment on editions {
---  id
---  title
---  asin
---  isbn10: isbn_10
---  isbn13: isbn_13
---  releaseDate: release_date
---  releaseYear: release_year
---  pages
---  audioSeconds: audio_seconds
---  readingFormatId: reading_format_id
---  usersCount: users_count
---  cachedImage: cached_image
---  editionFormat: edition_format
---  editionInformation: edition_information
---  language {
---    id
---    language
---    code: code2
---    __typename
---  }
---  readingFormat: reading_format {
---    format
---    __typename
---  }
---  country {
---    name
---    __typename
---  }
---  publisher {
---    ...PublisherFragment
---    __typename
---  }
---  __typename
---}
---
---fragment PublisherFragment on publishers {
---  id
---  name
---  slug
---  editionsCount: editions_count
---  __typename
---}"
-
-function HardcoverApi:findEditions()
-  query = [[
-query FindEditionsForBook($bookId: Int!) {
-  editions(where: {book_id: {_eq: $bookId}}, order_by: {users_count: desc}) {
-
-  }
-}]]
-end
 
 return HardcoverApi
-
---{"operationName":"CreateUserBook",
--- "variables":
---  {"object":{"book_id":382700,"status_id":1,"privacy_setting_id":2}},
--- "query":"mutation CreateUserBook($object: UserBookCreateInput!) {\n  insertResponse: insert_user_book(object: $object) {\n    error\n    userBook: user_book {\n      ...UserBookFragment\n      __typename\n    }\n    __typename\n  }\n}\n\nfragment UserBookFragment on user_books {\n  id\n  bookId: book_id\n  editionId: edition_id\n  userId: user_id\n  statusId: status_id\n  rating\n  privacySettingId: privacy_setting_id\n  hasReview: has_review\n  edition {\n    ...EditionFragment\n    __typename\n  }\n  datesRead: user_book_reads {\n    ...UserBookReadFragment\n    __typename\n  }\n  __typename\n}\n\nfragment EditionFragment on editions {\n  id\n  title\n  asin\n  isbn10: isbn_10\n  isbn13: isbn_13\n  releaseDate: release_date\n  releaseYear: release_year\n  pages\n  audioSeconds: audio_seconds\n  readingFormatId: reading_format_id\n  usersCount: users_count\n  cachedImage: cached_image\n  editionFormat: edition_format\n  editionInformation: edition_information\n  language {\n    id\n    language\n    code: code2\n    __typename\n  }\n  readingFormat: reading_format {\n    format\n    __typename\n  }\n  country {\n    name\n    __typename\n  }\n  publisher {\n    ...PublisherFragment\n    __typename\n  }\n  __typename\n}\n\nfragment UserBookReadFragment on user_book_reads {\n  id\n  userBookId: user_book_id\n  startedAt: started_at\n  finishedAt: finished_at\n  editionId: edition_id\n  progress\n  progressPages: progress_pages\n  progressSeconds: progress_seconds\n  edition {\n    ...EditionFragment\n    __typename\n  }\n  __typename\n}\n\nfragment PublisherFragment on publishers {\n  id\n  name\n  slug\n  editionsCount: editions_count\n  __typename\n}"}
--- "mutation DestroyUserBook($id: Int!) {\n  deleteResponse: delete_user_book(id: $id) {\n    id\n    bookId: book_id\n    userId: user_id\n    __typename\n  }\n}"
--- (currently reading)
--- {object: {book_id: 382700, status_id: 2, privacy_setting_id: 1}}
---"mutation CreateUserBook($object: UserBookCreateInput!) {\n  insertResponse: insert_user_book(object: $object) {\n    error\n    userBook: user_book {\n      ...UserBookFragment\n      __typename\n    }\n    __typename\n  }\n}\n\nfragment UserBookFragment on user_books {\n  id\n  bookId: book_id\n  editionId: edition_id\n  userId: user_id\n  statusId: status_id\n  rating\n  privacySettingId: privacy_setting_id\n  hasReview: has_review\n  edition {\n    ...EditionFragment\n    __typename\n  }\n  datesRead: user_book_reads {\n    ...UserBookReadFragment\n    __typename\n  }\n  __typename\n}\n\nfragment EditionFragment on editions {\n  id\n  title\n  asin\n  isbn10: isbn_10\n  isbn13: isbn_13\n  releaseDate: release_date\n  releaseYear: release_year\n  pages\n  audioSeconds: audio_seconds\n  readingFormatId: reading_format_id\n  usersCount: users_count\n  cachedImage: cached_image\n  editionFormat: edition_format\n  editionInformation: edition_information\n  language {\n    id\n    language\n    code: code2\n    __typename\n  }\n  readingFormat: reading_format {\n    format\n    __typename\n  }\n  country {\n    name\n    __typename\n  }\n  publisher {\n    ...PublisherFragment\n    __typename\n  }\n  __typename\n}\n\nfragment UserBookReadFragment on user_book_reads {\n  id\n  userBookId: user_book_id\n  startedAt: started_at\n  finishedAt: finished_at\n  editionId: edition_id\n  progress\n  progressPages: progress_pages\n  progressSeconds: progress_seconds\n  edition {\n    ...EditionFragment\n    __typename\n  }\n  __typename\n}\n\nfragment PublisherFragment on publishers {\n  id\n  name\n  slug\n  editionsCount: editions_count\n  __typename\n}"
-
-
--- changing the edition of an existing book being read:edition
---"mutation UpdateUserBook($id: Int!, $object: UserBookUpdateInput!) {\n  updateResponse: update_user_book(id: $id, object: $object) {\n    error\n    userBook: user_book {\n      ...UserBookFragment\n      __typename\n    }\n    __typename\n  }\n}\n\nfragment UserBookFragment on user_books {\n  id\n  bookId: book_id\n  editionId: edition_id\n  userId: user_id\n  statusId: status_id\n  rating\n  privacySettingId: privacy_setting_id\n  hasReview: has_review\n  edition {\n    ...EditionFragment\n    __typename\n  }\n  datesRead: user_book_reads {\n    ...UserBookReadFragment\n    __typename\n  }\n  __typename\n}\n\nfragment EditionFragment on editions {\n  id\n  title\n  asin\n  isbn10: isbn_10\n  isbn13: isbn_13\n  releaseDate: release_date\n  releaseYear: release_year\n  pages\n  audioSeconds: audio_seconds\n  readingFormatId: reading_format_id\n  usersCount: users_count\n  cachedImage: cached_image\n  editionFormat: edition_format\n  editionInformation: edition_information\n  language {\n    id\n    language\n    code: code2\n    __typename\n  }\n  readingFormat: reading_format {\n    format\n    __typename\n  }\n  country {\n    name\n    __typename\n  }\n  publisher {\n    ...PublisherFragment\n    __typename\n  }\n  __typename\n}\n\nfragment UserBookReadFragment on user_book_reads {\n  id\n  userBookId: user_book_id\n  startedAt: started_at\n  finishedAt: finished_at\n  editionId: edition_id\n  progress\n  progressPages: progress_pages\n  progressSeconds: progress_seconds\n  edition {\n    ...EditionFragment\n    __typename\n  }\n  __typename\n}\n\nfragment PublisherFragment on publishers {\n  id\n  name\n  slug\n  editionsCount: editions_count\n  __typename\n}"

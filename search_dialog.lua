@@ -1,34 +1,24 @@
-local Blitbuffer = require("ffi/blitbuffer")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local Device = require("device")
-local FrameContainer = require("ui/widget/container/framecontainer")
 local Geom = require("ui/geometry")
-local Size = require("ui/size")
-local TextWidget = require("ui/widget/textwidget")
-local VerticalGroup = require("ui/widget/verticalgroup")
-local WidgetContainer = require("ui/widget/container/widgetcontainer")
-local ListView = require("ui/widget/listview")
-local Font = require("ui/font")
-local Paginator = require("paginator")
-local TitleBar = require("ui/widget/titlebar")
-local UIManager = require("ui/uimanager")
 local GestureRange = require("ui/gesturerange")
-local Screen = Device.screen
-local Menu = require("ui/widget/menu")
-local logger = require("logger")
-local SearchMenu = require("searchmenu")
-local getUrlContent = require("vendor/url_content")
-local RenderImage = require("ui/renderimage")
-
-local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
-local footer_height = DGENERIC_ICON_SIZE + Size.line.thick
-
 local InputContainer = require("ui/widget/container/inputcontainer")
+local RenderImage = require("ui/renderimage")
+local SearchMenu = require("searchmenu")
+local Size = require("ui/size")
+local UIManager = require("ui/uimanager")
+local getUrlContent = require("vendor/url_content")
+local logger = require("logger")
+
+local Screen = Device.screen
 
 local HardcoverSearchDialog = InputContainer:extend {
   width = nil,
   bordersize = Size.border.window,
-  items = {}
+  items = {},
+  active_item = {},
+  select_cb = nil,
+  title = nil
 }
 
 local function loadImage(url)
@@ -42,7 +32,7 @@ local function loadImage(url)
   return success, content
 end
 
-function HardcoverSearchDialog:bookItem(book)
+function HardcoverSearchDialog:bookItem(book, active_item)
   local info = ""
   local title = book.title
   local authors = {}
@@ -61,17 +51,23 @@ function HardcoverSearchDialog:bookItem(book)
     title = title .. " (" .. book.release_year  .. ")"
   end
 
-  if book.users_read_count then
+  if book.users_count then
+    info = book.users_count .. " readers"
+  elseif  book.users_read_count then
     info = book.users_read_count .. " reads"
   end
 
+  local active = (book.edition_id and book.edition_id == active_item.edition_id) or (book.id == active_item.book_id)
+
   local result = {
     title = title,
-
     mandatory = info,
     mandatory_dim = true,
     file = "hardcover-" .. book.id,
-    _no_provider = true,
+    book_id = book.id,
+    edition_id = book.edition_id,
+    edition_format = book.edition_format,
+    dim = active
   }
 
   if book.pages then
@@ -84,7 +80,11 @@ function HardcoverSearchDialog:bookItem(book)
   end
 
   if #authors > 0 then
-    result.authors = table.concat(authors, "\n")
+    result.authors = table.concat(authors, ", ")
+  end
+
+  if book.filetype then
+    result.filetype = book.filetype
   end
 
   if book.cached_image.url then
@@ -95,9 +95,9 @@ function HardcoverSearchDialog:bookItem(book)
       result.has_cover = true
       result.cover_bb = RenderImage:renderImageData(cover_data, #cover_data, false, result.cover_w, result.cover_h)
     end
-
-    return result
   end
+
+  return result
 end
 
 function HardcoverSearchDialog:init()
@@ -115,32 +115,26 @@ function HardcoverSearchDialog:init()
     }
   end
 
-  local items = {}
-  --logger.warn("dialog", self.items)
-  for _, book in ipairs(self.items) do
-    table.insert(items, self:bookItem(book))
-  end
-
   self.width = self.width or Screen:getWidth() - Screen:scaleBySize(50)
   self.width = math.min(self.width, Screen:scaleBySize(600))
   self.height = Screen:getHeight() - Screen:scaleBySize(50)
 
-
   self.menu = SearchMenu:new {
-    title = "Select book",
-    item_table = items,
+    title = self.title or "Select book",
+    item_table = self:parseItems(self.items, self.active_item),
     width = self.width,
     height = self.height,
-
-    --title_bar_fm_style = true,
-    --is_popout = true,
-    onMenuSelect = function(item, pos)
-      logger.warn("selected: ", pos)
+    onMenuSelect = function(menu, book)
+      if self.select_book_cb then
+        self.select_book_cb(book)
+      end
     end,
     close_callback = function()
       self:onClose()
     end
   }
+
+  self.items = nil
 
   self.container = CenterContainer:new{
     dimen = Screen:getSize(),
@@ -151,54 +145,8 @@ function HardcoverSearchDialog:init()
   self[1] = self.container
 end
 
-function HardcoverSearchDialog:menu_init()
-  if Device:isTouchDevice() then
-    self.ges_events.Tap = {
-      GestureRange:new {
-        ges = "tap",
-        range = Geom:new {
-          x = 0,
-          y = 0,
-          w = Screen:getWidth(),
-          h = Screen:getHeight(),
-        }
-      }
-    }
-  end
-
-  local items = {}
-  --logger.warn("dialog", self.items)
-  for _, book in ipairs(self.items) do
-    table.insert(items, self:bookItem(book))
-  end
-
-  self.width = self.width or Screen:getWidth() - Screen:scaleBySize(50)
-  self.width = math.min(self.width, Screen:scaleBySize(600))
-  self.height = Screen:getHeight() - Screen:scaleBySize(50)
-
-  self.menu = Menu:new {
-    title = "Select book",
-    item_table = items,
-    width = self.width,
-    height = self.height,
-
-    --title_bar_fm_style = true,
-    --is_popout = true,
-    onMenuSelect = function(item, pos)
-      logger.warn("selected: ", pos)
-    end,
-    close_callback = function()
-      self:onClose()
-    end
-  }
-
-  self.container = CenterContainer:new{
-    dimen = Screen:getSize(),
-    self.menu,
-  }
-  self.menu.show_parent = self.container
-
-  self[1] = self.container
+function HardcoverSearchDialog:setTitle(title)
+  self.menu.title = title
 end
 
 function HardcoverSearchDialog:onClose()
@@ -211,6 +159,19 @@ function HardcoverSearchDialog:onTapClose(arg, ges)
     self:onClose()
   end
   return true
+end
+
+function HardcoverSearchDialog:parseItems(items, active_item)
+  local list = {}
+  for _, book in ipairs(items) do
+    table.insert(list, self:bookItem(book, active_item))
+  end
+  return list
+end
+
+function HardcoverSearchDialog:setItems(title, items, active_item)
+  local new_item_table = self:parseItems(items, active_item)
+  self.menu:switchItemTable(title, new_item_table)
 end
 
 function HardcoverSearchDialog:onTap(_, ges)
