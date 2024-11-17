@@ -490,6 +490,43 @@ function HardcoverApp:getVisibilitySubMenuItems()
   }
 end
 
+function HardcoverApp:getDefaultVisibilitySubMenuItems()
+  return {
+    {
+      text = _("Public"),
+      checked_func = function()
+        local visibility = self:defaultVisibility()
+        return visibility == PRIVACY_PUBLIC or visibility == nil
+      end,
+      callback = function()
+        self:_updateSetting("default_visibility", PRIVACY_PUBLIC)
+      end,
+      radio = true,
+
+    },
+    {
+      text = _("Follows"),
+      checked_func = function()
+        return self:defaultVisibility() == PRIVACY_FOLLOWS
+      end,
+      callback = function()
+        self:_updateSetting("default_visibility", PRIVACY_FOLLOWS)
+      end,
+      radio = true
+    },
+    {
+      text = _("Private"),
+      checked_func = function()
+        return self:defaultVisibility() == PRIVACY_PRIVATE
+      end,
+      callback = function()
+        self:_updateSetting("default_visibility", PRIVACY_PRIVATE)
+      end,
+      radio = true
+    },
+  }
+end
+
 function HardcoverApp:getStatusSubMenuItems()
   return {
     {
@@ -567,6 +604,9 @@ function HardcoverApp:getSettingsSubMenuItems()
     },
     {
       text = _("Default status visibility"),
+      sub_item_table_func = function()
+        return self:getDefaultVisibilitySubMenuItems()
+      end
     },
   }
 end
