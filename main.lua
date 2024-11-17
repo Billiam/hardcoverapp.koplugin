@@ -258,13 +258,24 @@ function HardcoverApp:linkBook(book)
   if not book.edition_format then
     table.insert(delete, "edition_format")
   end
-  self:_updateBookSetting(filename, {
+
+  local new_settings = {
     book_id = book.book_id,
     edition_id = book.edition_id,
     edition_format = book.edition_format,
     title = book.title,
     _delete = delete
-  })
+  }
+
+  self:_updateBookSetting(filename, new_settings)
+
+  self:cacheUserBook()
+  if book.book_id and self.book_status.id then
+    if new_settings.edition_id and new_settings.edition_id ~= self.book_status.edition_id then
+      self.book_status = Api:updateRead(new_settings.book_id, self.book_status.status_id, self.book_status.privacy_setting_id, new_settings.edition_id) or {}
+    end
+  end
+  -- get user reads for book
 end
 
 function HardcoverApp:clearLink()
@@ -388,13 +399,9 @@ function HardcoverApp:getSubMenuItems()
         local title = "Change edition"
 
         if edition_format then
-          local suffix = formatIcon(edition_format)
-          if not suffix then
-            suffix = edition_format
-          end
-          title = title .. ": " .. suffix
+          title = title .. ": " .. edition_format
         elseif self:getLinkedEditionId() then
-          return title .. ": " .. ICON_PHYSICAL_BOOK
+          return title .. ": physical book"
         end
 
         return _(title)
@@ -404,7 +411,6 @@ function HardcoverApp:getSubMenuItems()
       end,
       callback = function(menu_instance)
         local editions = Api:findEditions(self:getLinkedBookId(), self:getUserId())
-        logger.warn("editions", editions)
         -- need to show "active" here, and prioritize current edition if available
         self:buildDialog("Select edition", editions, { edition_id = self:getLinkedEditionId() })
         UIManager:show(self.search_dialog)
@@ -475,9 +481,11 @@ end
 
 function HardcoverApp:updateBookStatus(status, privacy_setting_id)
   local book_id = self:getLinkedBookId()
+  local edition_id = self:getLinkedEditionId()
+
   privacy_setting_id = privacy_setting_id or self:effectiveVisibilitySetting()
 
-  self.book_status = Api:updateRead(book_id, status, privacy_setting_id) or {}
+  self.book_status = Api:updateRead(book_id, status, privacy_setting_id, edition_id) or {}
   self:clearPendingBookVisibility()
 end
 

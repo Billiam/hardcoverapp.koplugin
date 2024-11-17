@@ -395,7 +395,7 @@ function HardcoverApi:updatePage(edition, page)
 
 end
 
-function HardcoverApi:updateRead(book_id, status_id, privacy_setting_id)
+function HardcoverApi:updateRead(book_id, status_id, privacy_setting_id, edition_id)
   local query = [[
     mutation ($object: UserBookCreateInput!) {
       insert_user_book(object: $object) {
@@ -410,8 +410,10 @@ function HardcoverApi:updateRead(book_id, status_id, privacy_setting_id)
   local update_args = {
     book_id = book_id,
     privacy_setting_id = privacy_setting_id or 1,
-    status_id = status_id
+    status_id = status_id,
+    edition_id = edition_id
   }
+
   local result = self:query(query, { object = update_args })
   if result and result.insert_user_book then
     return result.insert_user_book.user_book
