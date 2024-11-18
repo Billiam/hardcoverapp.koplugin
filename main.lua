@@ -15,6 +15,8 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 local logger = require("logger")
 local os = require("os")
+local math = require("math")
+local throttle = require("throttle")
 
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",
@@ -49,12 +51,6 @@ local ICON_CHECKMARK = "\u{F42E}"
 local ICON_STOP_CIRCLE = "\u{F28D}"
 -- nf-fa-trash_can
 local ICON_TRASH = "\u{F014}"
-
-local book_formats = {
-  [ICON_PHYSICAL_BOOK] = {"Paperback", "Hardcover", "Mass Market Paperback", "Library Binding", "Physical Book", ""},
-  [ICON_TABLET] = {"Kindle Edition", "ebook", "Kindle"},
-  [ICON_HEADPHONES] = {"Audio CD", "Audiobook", "Audio Cassette", "Audible Audio"}
-}
 
 local function parseIdentifiers(identifiers)
   result = {}
@@ -95,16 +91,6 @@ local function parseIdentifiers(identifiers)
   return result
 end
 
-local function formatIcon(format)
-  for icon, list in pairs(book_formats) do
-    for _, type in ipairs(list) do
-      if format == type then
-        return icon
-      end
-    end
-  end
-end
-
 function HardcoverApp:onDispatcherRegisterActions()
   Dispatcher:registerAction("hardcover_link", { category = "none", event = "HardcoverLink", title = _("Hardcover Link"), general = true, })
 end
@@ -113,7 +99,8 @@ function HardcoverApp:init()
   self.state = {
     page = nil,
     pos = nil,
-    search_results = {}
+    search_results = {},
+    book_status = {}
   }
   self.settings = LuaSettings:open(("%s/%s"):format(DataStorage:getSettingsDir(), "hardcoversync_settings.lua"))
 
@@ -122,49 +109,109 @@ function HardcoverApp:init()
   self.ui.menu:registerToMainMenu(self)
 end
 
--- TODO: debounce updates
-function HardcoverApp:onPageUpdate(page)
-  -- when updating, we may have an update ID already
-  -- but there may be an existing user read for this book
-  -- if no review id found, fetch existing user read for this book id
-  -- if no existing user read, create new status (in progress)
+function HardcoverApp:_handlePageUpdate(filename, page, document_pages, mapped_page, immediate)
+  local book_settings = self:_readBookSettings(filename)
+  if not book_settings.book_id or not book_settings.sync then
+    return
+  end
 
-  local props = self.view.document:getProps()
+  if self.state.book_status.status_id ~= STATUS_READING then
+    return
+  end
 
-  -- TODO: translate page to percent or live total pages
+  if not mapped_page then
+    mapped_page = math.floor(( page / document_pages) * book_settings.pages)
+  end
+
+  local reads = self.state.book_status.user_book_reads
+  local current_read = reads and reads[#reads]
+  if not current_read then
+    return
+  end
+
+  local apiUpdate = function()
+    Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
+  end
+
+  if immediate then
+    apiUpdate()
+  else
+    UIManager:scheduleIn(1, apiUpdate)
+  end
+end
+
+HardcoverApp._throttledHandlePageUpdate, HardcoverApp._cancelPageUpdate = throttle(30, HardcoverApp._handlePageUpdate)
+
+function HardcoverApp:pageUpdateEvent(page)
   self.state.page = page
-  --self debouncedPageUpdate()
+  local document_pages = self.ui.document:getPageCount() -- non-translated
+  local mapped_page = self.state.page_map and self.state.page_map[page]
+  if self.state.book_status.id then
+    self:_throttledHandlePageUpdate(self.view.document.file, page, document_pages, mapped_page)
+  end
+end
+
+HardcoverApp.onPageUpdate = HardcoverApp.pageUpdateEvent
+function HardcoverApp:onPosUpdate(_, page)
+  self:pageUpdateEvent(page)
+end
+
+function HardcoverApp:onUpdatePos()
+  self:cachePageMap()
 end
 
 function HardcoverApp:onReaderReady()
-logger.warn("Reader ready")
+  self:cachePageMap()
+
+  local book_settings = self:_readBookSettings(self.view.document.file)
+  if book_settings.book_id and book_settings.sync then
+    self:cacheUserBook()
+  end
 end
+
 function HardcoverApp:onDocumentClose()
-logger.warn("Document closed")
+  self.state.book_status = {}
+  self.state.page_map = nil
 end
+
 function HardcoverApp:onSuspend()
-logger.warn("Begin suspend")
-end
-function HardcoverApp:onResume()
-  logger.warn("Resumed")
+  self:_cancelPageUpdate()
 end
 
-function HardcoverApp:debouncedPageUpdate()
+function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
+  local book_settings = self:_readBookSettings(file)
 
+  if not book_settings.book_id or not book_settings.sync then
+    return
+  end
+
+  local status
+  if doc_settings.summary.status == "complete" then
+    status = STATUS_FINISHED
+  elseif doc_settings.summary.status == "reading" then
+    status = STATUS_READING
+  end
+
+  if status then
+    local user_book = Api:findUserBook(book_settings.book_id, self:getUserId()) or {}
+    local privacy_setting_id = user_book.privacy_setting_id or user_book.pending_visibility or self:defaultVisibility()
+
+    self:updateBookStatus(file, status, privacy_setting_id)
+  end
 end
 
-function HardcoverApp:updatePage()
-  --local setting = self.settings.readSetting(self.view.document.file)
-  --if setting.sync and setting.editionId then
-  --
-  --end
+function HardcoverApp:_readBookSettings(filename)
+  local books = self.settings:readSetting("books")
+  if not books then return end
+
+  return books[filename]
 end
 
 function HardcoverApp:_readBookSetting(filename, key)
-  local books = self.settings:readSetting("books")
-  if not books then return end
-  if not books[filename] then return end
-  return books[filename][key]
+  local settings = self:_readBookSettings(filename)
+  if settings then
+    return settings[key]
+  end
 end
 
 function HardcoverApp:_updateBookSetting(filename, config)
@@ -192,12 +239,14 @@ function HardcoverApp:_updateSetting(key, value)
   self.settings:flush()
 end
 
-function HardcoverApp:stopSync()
-  self:_updateBookSetting(self.view.document.file, { _delete = { "sync" }})
-end
-
-function HardcoverApp:startSync()
-  self:_updateBookSetting(self.view.document.file,{ sync = true })
+function HardcoverApp:setSync(value)
+  local setting = {}
+  if value then
+    setting.sync = true
+  else
+    setting._delete = { "sync" }
+  end
+  self:_updateBookSetting(self.view.document.file, setting)
 end
 
 function HardcoverApp:editionLinked()
@@ -241,8 +290,12 @@ function HardcoverApp:pages()
   return self:_readBookSetting(self.view.document.file, "pages")
 end
 
-function HardcoverApp:clearPendingBookVisibility()
-  return self:_updateBookSetting(self.view.document.file, { _delete = { "visibility" }})
+function HardcoverApp:clearCurrentPendingBookVisibility()
+  return self:clearPendingBookVisibility(self.view.document.file)
+end
+
+function HardcoverApp:clearPendingBookVisibility(filename)
+  return self:_updateBookSetting(filename, { _delete = { "visibility" }})
 end
 
 function HardcoverApp:setPendingBookVisibility(visibility)
@@ -272,17 +325,15 @@ function HardcoverApp:linkBook(book)
     title = book.title,
     _delete = delete
   }
-  logger.warn("New setting", new_settings)
 
   self:_updateBookSetting(filename, new_settings)
 
   self:cacheUserBook()
-  if book.book_id and self.book_status.id then
-    if new_settings.edition_id and new_settings.edition_id ~= self.book_status.edition_id then
-      self.book_status = Api:updateUserBook(new_settings.book_id, self.book_status.status_id, self.book_status.privacy_setting_id, new_settings.edition_id) or {}
+  if book.book_id and self.state.book_status.id then
+    if new_settings.edition_id and new_settings.edition_id ~= self.state.book_status.edition_id then
+      self.state.book_status = Api:updateUserBook(new_settings.book_id, self.state.book_status.status_id, self.state.book_status.privacy_setting_id, new_settings.edition_id) or {}
     end
   end
-  -- get user reads for book
 end
 
 function HardcoverApp:clearLink()
@@ -298,11 +349,6 @@ function HardcoverApp:getUserId()
   end
 
   return user_id
-end
-
-
-function HardcoverApp:onPosUpdate(pos)
-  self.state.pos = pos
 end
 
 
@@ -356,8 +402,9 @@ function HardcoverApp:buildDialog(title, items, active_item)
         self.search_dialog:onClose()
 
         self:linkBook(book)
-        if self.menu_instance then
-          self.menu_instance:updateItems()
+        if self.state.menu_instance then
+          self.state.menu_instance:updateItems()
+          self.state.menu_instance = nil
         end
       end
     }
@@ -365,7 +412,34 @@ function HardcoverApp:buildDialog(title, items, active_item)
 end
 
 function HardcoverApp:cacheUserBook()
-  self.book_status = Api:findUserBook(self:getLinkedBookId(), self:getUserId()) or {}
+  self.state.book_status = Api:findUserBook(self:getLinkedBookId(), self:getUserId()) or {}
+end
+
+function HardcoverApp:cachePageMap()
+  local page_map = self.ui.document:getPageMap()
+  if not page_map then
+    return
+  end
+
+  local lookup = {}
+  local last_label
+  local real_page = 1
+  local last_page = 1
+
+  for _,v in ipairs(page_map) do
+    for i=last_page, v.page, 1 do
+      lookup[i] = real_page
+    end
+
+    if v.label ~= last_label then
+      real_page = real_page + 1
+      last_label = v.label
+    end
+    lookup[v.page] = real_page
+    last_page = v.page
+  end
+
+  self.state.page_map = lookup
 end
 
 function HardcoverApp:getSubMenuItems()
@@ -395,7 +469,7 @@ function HardcoverApp:getSubMenuItems()
         local books = self:findBookOptions(force_search)
         self:buildDialog("Select book", books, { book_id = self:getLinkedBookId() })
         UIManager:show(self.search_dialog)
-        self.menu_instance = menu_instance
+        self.state.menu_instance = menu_instance
       end,
     },
     {
@@ -421,7 +495,7 @@ function HardcoverApp:getSubMenuItems()
         -- need to show "active" here, and prioritize current edition if available
         self:buildDialog("Select edition", editions, { edition_id = self:getLinkedEditionId() })
         UIManager:show(self.search_dialog)
-        self.menu_instance = menu_instance
+        self.state.menu_instance = menu_instance
       end,
       keep_menu_open = true,
       separator = true
@@ -435,11 +509,8 @@ function HardcoverApp:getSubMenuItems()
         return self:bookLinked()
       end,
       callback = function()
-        if self:syncEnabled() then
-          self:stopSync()
-        else
-          self:startSync()
-        end
+        local sync = not self:syncEnabled()
+        self:setSync(sync)
       end,
     },
     {
@@ -471,8 +542,8 @@ function HardcoverApp:getSubMenuItems()
 end
 
 function HardcoverApp:effectiveVisibilitySetting()
-  if self.book_status.privacy_setting_id ~= nil then
-    return self.book_status.privacy_setting_id
+  if self.state.book_status.privacy_setting_id ~= nil then
+    return self.state.book_status.privacy_setting_id
   end
 
   local pending_visibility = self:pendingBookVisibility()
@@ -480,26 +551,26 @@ function HardcoverApp:effectiveVisibilitySetting()
     return pending_visibility
   end
 
-  local default_visibility = self:defaultVisibility()
-  if default_visibility ~= nil then
-    return defaultVisibility
-  end
+  return self:defaultVisibility()
 end
 
-function HardcoverApp:updateBookStatus(status, privacy_setting_id)
-  local book_id = self:getLinkedBookId()
-  local edition_id = self:getLinkedEditionId()
-
+function HardcoverApp:updateCurrentBookStatus(status, privacy_setting_id)
   privacy_setting_id = privacy_setting_id or self:effectiveVisibilitySetting()
+  self:updateBookStatus(self.view.document.file, status, privacy_setting_id)
+end
 
-  self.book_status = Api:updateUserBook(book_id, status, privacy_setting_id, edition_id) or {}
-  self:clearPendingBookVisibility()
+function HardcoverApp:updateBookStatus(filename, status, privacy_setting_id)
+  local settings = self:_readBookSettings(filename)
+  local book_id = settings.book_id
+  local edition_id = settings.edition_id
+  self.state.book_status = Api:updateUserBook(book_id, status, privacy_setting_id, edition_id) or {}
+  self:clearPendingBookVisibility(filename)
 end
 
 function HardcoverApp:changeBookVisibility(visibility)
   self:cacheUserBook()
-  if self.book_status.id then
-    self:updateBookStatus(self.book_status.status_id, visibility)
+  if self.state.book_status.id then
+    self:updateCurrentBookStatus(self.state.book_status.status_id, visibility)
   else
     self:setPendingBookVisibility(visibility)
   end
@@ -584,52 +655,52 @@ function HardcoverApp:getStatusSubMenuItems()
     {
       text = _(ICON_BOOKMARK .. " Want To Read"),
       checked_func = function()
-        return self.book_status.status_id == STATUS_TO_READ
+        return self.state.book_status.status_id == STATUS_TO_READ
       end,
       callback = function()
-        self:updateBookStatus(STATUS_TO_READ)
+        self:updateCurrentBookStatus(STATUS_TO_READ)
       end,
       radio = true
     },
     {
       text = _(ICON_OPEN_BOOK .. " Currently Reading"),
       checked_func = function()
-        return self.book_status.status_id == STATUS_READING
+        return self.state.book_status.status_id == STATUS_READING
       end,
       callback = function()
-        self:updateBookStatus(STATUS_READING)
+        self:updateCurrentBookStatus(STATUS_READING)
       end,
       radio = true
     },
     {
       text = _(ICON_CHECKMARK .. " Read"),
       checked_func = function()
-        return self.book_status.status_id == STATUS_FINISHED
+        return self.state.book_status.status_id == STATUS_FINISHED
       end,
       callback = function()
-        self:updateBookStatus(STATUS_FINISHED)
+        self:updateCurrentBookStatus(STATUS_FINISHED)
       end,
       radio = true
     },
     {
       text = _(ICON_STOP_CIRCLE .. " Did Not Finish"),
       checked_func = function()
-        return self.book_status.status_id == STATUS_DNF
+        return self.state.book_status.status_id == STATUS_DNF
       end,
       callback = function()
-        self:updateBookStatus(STATUS_DNF)
+        self:updateCurrentBookStatus(STATUS_DNF)
       end,
       radio = true,
     },
     {
       text = _(ICON_TRASH .. " Remove"),
       enabled_func = function()
-        return self.book_status.status_id ~= nil
+        return self.state.book_status.status_id ~= nil
       end,
       callback = function(menu_instance)
-        local result = Api:removeRead(self.book_status.id)
+        local result = Api:removeRead(self.state.book_status.id)
         if result then
-          self.book_status = {}
+          self.state.book_status = {}
           menu_instance:updateItems()
         end
       end,
@@ -638,7 +709,7 @@ function HardcoverApp:getStatusSubMenuItems()
     },
     {
       text_func = function()
-        local reads = self.book_status.user_book_reads
+        local reads = self.state.book_status.user_book_reads
         local current_page = reads and reads[#reads].progress_pages or 0
         local max_pages = self:pages()
 
@@ -649,10 +720,10 @@ function HardcoverApp:getStatusSubMenuItems()
         return T(_("Update page: %1 of %2"), current_page, max_pages)
       end,
       enabled_func = function()
-        return self.book_status.status_id == STATUS_READING and self:pages()
+        return self.state.book_status.status_id == STATUS_READING and self:pages()
       end,
       callback = function(menu_instance)
-        local reads = self.book_status.user_book_reads
+        local reads = self.state.book_status.user_book_reads
         local current_read = reads and reads[#reads]
         local current_page = current_read and current_read.progress_pages or 0
         local max_pages = self:pages()
@@ -673,11 +744,11 @@ function HardcoverApp:getStatusSubMenuItems()
               result = Api:updatePage(current_read.id, current_read.edition_id, page, current_read.started_at)
             else
               local start_date = os.date("%Y-%m-%d")
-              result = Api:createRead(self.book_status.id, self.book_status.edition_id, page, start_date)
+              result = Api:createRead(self.state.book_status.id, self.state.book_status.edition_id, page, start_date)
             end
 
             if result then
-              self.book_status = result
+              self.state.book_status = result
               menu_instance:updateItems()
             end
           end

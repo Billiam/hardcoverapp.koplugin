@@ -454,7 +454,6 @@ function HardcoverApi:updatePage(user_read_id, edition_id, page, started_at)
   ]]
 
   local result = self:query(query, { id = user_read_id, pages = page, editionId = edition_id, startedAt = started_at})
-
   if result and result.update_user_book_read then
     local user_book_read = result.update_user_book_read.user_book_read
 
@@ -502,19 +501,6 @@ function HardcoverApi:removeRead(user_book_id)
   ]]
   return self:query(query, { id = user_book_id })
 end
-
---mutation StartBookProgress($bookId: Int!, $pages: Int, $editionId: Int, $startedAt: date) {
---  insert_user_book_read(user_book_id: $bookId, user_book_read: {
---    progress_pages: $pages,
---    edition_id: $editionId,
---    started_at: $startedAt,
---  }) {
---    id
---  }
---}
-
--- status id 2
---end
 
 function HardcoverApi:setRating(edition)
 end
