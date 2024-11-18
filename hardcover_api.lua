@@ -60,6 +60,7 @@ fragment UserBookParts on user_books {
   status_id
   edition_id
   privacy_setting_id
+  rating
   user_book_reads(order_by: {id: asc}) {
     id
     started_at
@@ -409,6 +410,7 @@ function HardcoverApi:createRead(user_book_id, edition_id, page, started_at)
             status_id
             edition_id
             privacy_setting_id
+            rating
           }
         }
       }
@@ -447,6 +449,7 @@ function HardcoverApi:updatePage(user_read_id, edition_id, page, started_at)
             status_id
             edition_id
             privacy_setting_id
+            rating
           }
         }
       }
@@ -490,10 +493,27 @@ function HardcoverApi:updateUserBook(book_id, status_id, privacy_setting_id, edi
   end
 end
 
+function HardcoverApi:updateRating(user_book_id, rating)
+  local query = [[
+    mutation ($id: Int!, $rating: numeric!) {
+      update_user_book(id: $id, object: { rating: $rating }) {
+        error
+        user_book {
+          ...UserBookParts
+        }
+      }
+    }
+  ]] .. user_book_fragment
+
+  local result = self:query(query, { id = user_book_id, rating = rating })
+  if result and result.update_user_book then
+    return result.update_user_book.user_book
+  end
+end
+
 function HardcoverApi:removeRead(user_book_id)
   local query = [[
     mutation($id: Int!) {
-      error
       delete_user_book(id: $id) {
         id
       }

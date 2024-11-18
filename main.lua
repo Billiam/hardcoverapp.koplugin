@@ -51,6 +51,10 @@ local ICON_CHECKMARK = "\u{F42E}"
 local ICON_STOP_CIRCLE = "\u{F28D}"
 -- nf-fa-trash_can
 local ICON_TRASH = "\u{F014}"
+-- nf-fa-star
+local ICON_STAR = "\u{F005}"
+-- nf-fa-star_half
+local ICON_HALF_STAR = "\u{F089}"
 
 local function parseIdentifiers(identifiers)
   result = {}
@@ -699,7 +703,7 @@ function HardcoverApp:getStatusSubMenuItems()
       end,
       callback = function(menu_instance)
         local result = Api:removeRead(self.state.book_status.id)
-        if result then
+        if result and result.id then
           self.state.book_status = {}
           menu_instance:updateItems()
         end
@@ -710,7 +714,7 @@ function HardcoverApp:getStatusSubMenuItems()
     {
       text_func = function()
         local reads = self.state.book_status.user_book_reads
-        local current_page = reads and reads[#reads].progress_pages or 0
+        local current_page = reads and reads[#reads] and reads[#reads].progress_pages or 0
         local max_pages = self:pages()
 
         if not max_pages then
@@ -757,6 +761,48 @@ function HardcoverApp:getStatusSubMenuItems()
       end,
       keep_menu_open = true
     },
+    {
+      text_func = function()
+        local text = "Update rating"
+        if self.state.book_status.rating then
+          local whole_star = math.floor(self.state.book_status.rating)
+          local star_string = string.rep(ICON_STAR, whole_star)
+          if self.state.book_status.rating - whole_star > 0 then
+            star_string = star_string .. ICON_HALF_STAR
+          end
+          text = text .. ": " .. star_string
+        end
+
+        return _(text)
+      end,
+      enabled_func = function()
+        return self.state.book_status.id ~= nil
+      end,
+      callback = function(menu_instance)
+        local rating = self.state.book_status.rating
+
+        local spinner = SpinWidget:new{
+          ok_always_enabled = rating == nil,
+          value = rating or 2.5,
+          value_min = 0,
+          value_max = 5,
+          value_step = 0.5,
+          value_hold_step = 2,
+          precision = "%.1f",
+          ok_text = _("Save"),
+          title_text = _("Set Rating"),
+          callback = function(spin)
+            local result = Api:updateRating(self.state.book_status.id, spin.value)
+            if result then
+              self.state.book_status = result
+              menu_instance:updateItems()
+            end
+          end
+        }
+        UIManager:show(spinner)
+      end,
+      keep_menu_open = true,
+    }
   }
 end
 
