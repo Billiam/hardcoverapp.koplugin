@@ -38,8 +38,11 @@ function Batch:loadImages(urls)
 
   local url_queue = {unpack (urls)}
   local run_image
+  local stop_loading = false
 
   run_image = function()
+    if stop_loading then return end
+
     local url = table.remove(url_queue,1)
     local success, content = getUrlContent(url, 10, 30)
 
@@ -59,13 +62,20 @@ function Batch:loadImages(urls)
   end
 
   UIManager:nextTick(run_image)
+
+  local halt = function()
+    stop_loading = true
+    UIManager:unschedule(run_image)
+  end
+
+  return halt
 end
 
 function ImageLoader:loadImages(urls, callback)
   local batch = Batch:new()
   batch.callback = callback
-  batch:loadImages(urls, callback)
-  return batch
+  local halt = batch:loadImages(urls, callback)
+  return batch, halt
 end
 
 return ImageLoader
