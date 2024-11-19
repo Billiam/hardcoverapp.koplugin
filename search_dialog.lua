@@ -137,7 +137,8 @@ function HardcoverSearchDialog:init()
     dimen = Screen:getSize(),
     self.menu,
   }
-  self.menu.show_parent = self--.container
+
+  self.menu.show_parent = self
 
   self[1] = self.container
 end
@@ -167,7 +168,16 @@ function HardcoverSearchDialog:parseItems(items, active_item)
 end
 
 function HardcoverSearchDialog:setItems(title, items, active_item)
+  -- hack: Allow reusing menu (and closing more than once)
+  self.menu._covermenu_onclose_done = false
   local new_item_table = self:parseItems(items, active_item)
+  if self.menu.item_table then
+    for _,v in ipairs(self.menu.item_table) do
+      if v.cover_bb then
+        v.cover_bb:free()
+      end
+    end
+  end
   self.menu:switchItemTable(title, new_item_table)
 end
 

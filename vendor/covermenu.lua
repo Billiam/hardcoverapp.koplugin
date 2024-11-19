@@ -102,9 +102,8 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
   -- be updated by a scheduled action
   self.items_to_update = {}
   -- Cancel any previous (now obsolete) scheduled update
-  if self.items_update_action then
-    UIManager:unschedule(self.items_update_action)
-    self.items_update_action = nil
+  if self.halt_image_loading then
+    self.halt_image_loading()
   end
 
   -- Force garbage collecting before drawing a new page.
@@ -179,20 +178,18 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
 
     if #images > 0 then
       UIManager:scheduleIn(1, function()
-        image_batch = ImageLoader:loadImages(images, function(url, content)
+        image_batch, self.halt_image_loading = ImageLoader:loadImages(images, function(url, content)
           for _,item in ipairs(items_by_cover_url[url]) do
-            item.lazy_load_cover = false
+            item.entry.lazy_load_cover = false
             item.entry.has_cover = true
 
-            logger.warn(url, #content)
-
             item.entry.cover_bb = RenderImage:renderImageData(content, #content, false, item.cover_w, item.cover_h)
+            item.entry.cover_bb:setAllocated(1)
             item:update()
 
             self.show_parent.dithered = item._has_cover_image
 
             local refreshfunc = function()
-              logger.warn(item.refresh_dimen, item[1].dimen)
               if item.refresh_dimen then
                 -- MosaicMenuItem may exceed its own dimen in its paintTo
                 -- with its "description" hint
@@ -459,6 +456,7 @@ function CoverMenu:onCloseWidget()
   if self._covermenu_onclose_done then
     return
   end
+
   self._covermenu_onclose_done = true
 
   -- Stop background job if any (so that full cpu is available to reader)
@@ -468,10 +466,14 @@ function CoverMenu:onCloseWidget()
   BookInfoManager:cleanUp() -- clean temporary resources
 
   -- Cancel any still scheduled update
-  if self.items_update_action then
-    logger.dbg("CoverMenu:onCloseWidget: unscheduling items_update_action")
-    UIManager:unschedule(self.items_update_action)
-    self.items_update_action = nil
+  if self.halt_image_loading then
+    self.halt_image_loading()
+  end
+
+  for _,v in ipairs(self.item_table) do
+    if v.cover_bb then
+      v.cover_bb:free()
+    end
   end
 
   -- Propagate a call to free() to all our sub-widgets, to release memory used by their _bb

@@ -257,7 +257,7 @@ function ListMenuItem:update()
     }
   else -- file
     self.file_deleted = self.entry.dim -- entry with deleted file from History or selected file from FM
-    local fgcolor = self.file_deleted or self.highlight and Blitbuffer.COLOR_DARK_GRAY or nil
+    local fgcolor = (self.file_deleted or self.entry.highlight) and Blitbuffer.COLOR_DARK_GRAY or nil
 
     --local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
     local bookinfo = self.entry
@@ -302,6 +302,7 @@ function ListMenuItem:update()
           local wimage = ImageWidget:new{
             image = bookinfo.cover_bb,
             scale_factor = scale_factor,
+            image_disposable = false
           }
           wimage:_render()
           local image_size = wimage:getSize() -- get final widget size

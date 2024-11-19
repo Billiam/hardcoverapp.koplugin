@@ -416,7 +416,6 @@ function HardcoverApp:addToMainMenu(menu_items)
   if not self.view then
     return
   end
-  local this = self
 
   menu_items.hardcover = {
     --sorting_hint = "navi",
