@@ -66,7 +66,7 @@ local SETTING_LINK_BY_ISBN = "link_by_isbn"
 local SETTING_LINK_BY_HARDCOVER = "link_by_hardcover"
 local SETTING_LINK_BY_TITLE = "link_by_title"
 local SETTING_ALWAYS_SYNC = "always_sync"
-local SETTING_DEFAULT_VISIBILITY = "default_visibility"
+local SETTING_USER_ID = "user_id"
 
 local function parseIdentifiers(identifiers)
   result = {}
@@ -229,8 +229,7 @@ function HardcoverApp:onEndOfBook()
 
   local marker = function()
     local user_book = Api:findUserBook(book_settings.book_id, user_id) or {}
-    local privacy_setting_id = user_book.privacy_setting_id or user_book.pending_visibility or self:defaultVisibility()
-    self:updateBookStatus(file_path, STATUS_FINISHED, privacy_setting_id)
+    self:updateBookStatus(file_path, STATUS_FINISHED, user_book.privacy_setting_id)
   end
 
   if mark_read == 'later' then
@@ -248,6 +247,10 @@ function HardcoverApp:onEndOfBook()
     end)
   else
     marker()
+    UIManager:show(InfoMessage:new {
+      text = _("Hardcover status saved"),
+      timeout = 2
+    })
   end
 end
 
@@ -267,9 +270,12 @@ function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
 
   if status then
     local user_book = Api:findUserBook(book_settings.book_id, self:getUserId()) or {}
-    local privacy_setting_id = user_book.privacy_setting_id or user_book.pending_visibility or self:defaultVisibility()
+    self:updateBookStatus(file, status, user_book.privacy_setting_id)
 
-    self:updateBookStatus(file, status, privacy_setting_id)
+    UIManager:show(InfoMessage:new {
+      text = _("Hardcover status saved"),
+      timeout = 2
+    })
   end
 end
 
@@ -356,28 +362,8 @@ function HardcoverApp:syncEnabled()
   return sync_value == true
 end
 
-function HardcoverApp:pendingBookVisibility()
-  return self:_readBookSetting(self.view.document.file, "visibility")
-end
-
 function HardcoverApp:pages()
   return self:_readBookSetting(self.view.document.file, "pages")
-end
-
-function HardcoverApp:clearCurrentPendingBookVisibility()
-  return self:clearPendingBookVisibility(self.view.document.file)
-end
-
-function HardcoverApp:clearPendingBookVisibility(filename)
-  return self:_updateBookSetting(filename, { _delete = { "visibility" }})
-end
-
-function HardcoverApp:setPendingBookVisibility(visibility)
-  return self:_updateBookSetting(self.view.document.file, { visibility = visibility })
-end
-
-function HardcoverApp:defaultVisibility()
-  return self.settings:readSetting(SETTING_DEFAULT_VISIBILITY)
 end
 
 function HardcoverApp:linkBook(book)
@@ -464,11 +450,11 @@ function HardcoverApp:clearLink()
 end
 
 function HardcoverApp:getUserId()
-  local user_id = self.settings:readSetting("user_id")
+  local user_id = self.settings:readSetting(SETTING_USER_ID)
   if not user_id then
     local me = Api:me()
     user_id = me.id
-    self:_updateSetting("user_id", user_id)
+    self:_updateSetting(SETTING_USER_ID, user_id)
   end
 
   return user_id
@@ -538,6 +524,9 @@ function HardcoverApp:cacheUserBook()
 end
 
 function HardcoverApp:cachePageMap()
+  if not self.ui.document.getPageMap then
+    return
+  end
   local page_map = self.ui.document:getPageMap()
   if not page_map then
     return
@@ -642,16 +631,6 @@ function HardcoverApp:getSubMenuItems()
         self:cacheUserBook()
         return self:getStatusSubMenuItems()
       end,
-    },
-    {
-      text = _("Set status visibility"),
-      enabled_func = function()
-        return self:bookLinked()
-      end,
-      sub_item_table_func = function()
-        self:cacheUserBook()
-        return self:getVisibilitySubMenuItems()
-      end,
       separator = true
     },
     {
@@ -661,21 +640,7 @@ function HardcoverApp:getSubMenuItems()
   }
 end
 
-function HardcoverApp:effectiveVisibilitySetting()
-  if self.state.book_status.privacy_setting_id ~= nil then
-    return self.state.book_status.privacy_setting_id
-  end
-
-  local pending_visibility = self:pendingBookVisibility()
-  if pending_visibility ~= nil then
-    return pending_visibility
-  end
-
-  return self:defaultVisibility()
-end
-
 function HardcoverApp:updateCurrentBookStatus(status, privacy_setting_id)
-  privacy_setting_id = privacy_setting_id or self:effectiveVisibilitySetting()
   self:updateBookStatus(self.view.document.file, status, privacy_setting_id)
 end
 
@@ -683,21 +648,14 @@ function HardcoverApp:updateBookStatus(filename, status, privacy_setting_id)
   local settings = self:_readBookSettings(filename)
   local book_id = settings.book_id
   local edition_id = settings.edition_id
-  self.state.book_status = Api:updateUserBook(book_id, status, privacy_setting_id, edition_id) or {}
-  self:clearPendingBookVisibility(filename)
 
-  UIManager:show(InfoMessage:new {
-    text = _("Hardcover status saved"),
-    timout = 2
-  })
+  self.state.book_status = Api:updateUserBook(book_id, status, privacy_setting_id, edition_id) or {}
 end
 
 function HardcoverApp:changeBookVisibility(visibility)
   self:cacheUserBook()
   if self.state.book_status.id then
     self:updateCurrentBookStatus(self.state.book_status.status_id, visibility)
-  else
-    self:setPendingBookVisibility(visibility)
   end
 end
 
@@ -706,19 +664,17 @@ function HardcoverApp:getVisibilitySubMenuItems()
     {
       text = _(privacy_labels[PRIVACY_PUBLIC]),
       checked_func = function()
-        local visibility = self:effectiveVisibilitySetting()
-        return visibility == PRIVACY_PUBLIC or visibility == nil
+        return self.state.book_status.privacy_setting_id == PRIVACY_PUBLIC
       end,
       callback = function()
         self:changeBookVisibility(PRIVACY_PUBLIC)
       end,
       radio = true,
-
     },
     {
       text = _(privacy_labels[PRIVACY_FOLLOWS]),
       checked_func = function()
-        return self:effectiveVisibilitySetting() == PRIVACY_FOLLOWS
+        return self.state.book_status.privacy_setting_id == PRIVACY_FOLLOWS
       end,
       callback = function()
         self:changeBookVisibility(PRIVACY_FOLLOWS)
@@ -728,47 +684,10 @@ function HardcoverApp:getVisibilitySubMenuItems()
     {
       text = _(privacy_labels[PRIVACY_PRIVATE]),
       checked_func = function()
-        return self:effectiveVisibilitySetting() == PRIVACY_PRIVATE
+        return self.state.book_status.privacy_setting_id == PRIVACY_PRIVATE
       end,
       callback = function()
         self:changeBookVisibility(PRIVACY_PRIVATE)
-      end,
-      radio = true
-    },
-  }
-end
-
-function HardcoverApp:getDefaultVisibilitySubMenuItems()
-  return {
-    {
-      text = _(privacy_labels[PRIVACY_PUBLIC]),
-      checked_func = function()
-        local visibility = self:defaultVisibility()
-        return visibility == PRIVACY_PUBLIC or visibility == nil
-      end,
-      callback = function()
-        self:_updateSetting(SETTING_DEFAULT_VISIBILITY, PRIVACY_PUBLIC)
-      end,
-      radio = true,
-
-    },
-    {
-      text = _(privacy_labels[PRIVACY_FOLLOWS]),
-      checked_func = function()
-        return self:defaultVisibility() == PRIVACY_FOLLOWS
-      end,
-      callback = function()
-        self:_updateSetting(SETTING_DEFAULT_VISIBILITY, PRIVACY_FOLLOWS)
-      end,
-      radio = true
-    },
-    {
-      text = _(privacy_labels[PRIVACY_PRIVATE]),
-      checked_func = function()
-        return self:defaultVisibility() == PRIVACY_PRIVATE
-      end,
-      callback = function()
-        self:_updateSetting(SETTING_DEFAULT_VISIBILITY, PRIVACY_PRIVATE)
       end,
       radio = true
     },
@@ -826,6 +745,7 @@ function HardcoverApp:getStatusSubMenuItems()
         local result = Api:removeRead(self.state.book_status.id)
         if result and result.id then
           self.state.book_status = {}
+          logger.warn("Updating menu instance")
           menu_instance:updateItems()
         end
       end,
@@ -933,7 +853,17 @@ function HardcoverApp:getStatusSubMenuItems()
         end
       end,
       keep_menu_open = true,
-    }
+      separator = true
+    },
+    {
+      text = _("Set status visibility"),
+      enabled_func = function()
+        return self.state.book_status.id ~= nil
+      end,
+      sub_item_table_func = function()
+        return self:getVisibilitySubMenuItems()
+      end,
+    },
   }
 end
 
@@ -998,7 +928,8 @@ function HardcoverApp:getSettingsSubMenuItems()
         if not setting then
           self:tryAutolink()
         end
-      end
+      end,
+      separator = true
     },
     {
       text = "Always track progress by default",
@@ -1008,20 +939,6 @@ function HardcoverApp:getSettingsSubMenuItems()
       callback = function()
         local setting = self.settings:readSetting(SETTING_ALWAYS_SYNC) == true
         self:_updateSetting(SETTING_ALWAYS_SYNC, not setting)
-      end
-    },
-    {
-      text_func = function()
-        local text = "Default status visibility"
-        local setting = self.settings:readSetting(SETTING_DEFAULT_VISIBILITY)
-        if setting then
-          text = text .. ": " .. privacy_labels[setting]
-        end
-
-        return _(text)
-      end,
-      sub_item_table_func = function()
-        return self:getDefaultVisibilitySubMenuItems()
       end
     },
   }
