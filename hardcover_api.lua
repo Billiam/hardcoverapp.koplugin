@@ -155,8 +155,8 @@ function HardcoverApi:query(query, parameters)
     sink = ltn12.sink.table(responseBody),
   }
   --logger.warn("Request time", os:clock() - t)
-  --logger.warn(requestBody)
-  --logger.warn(responseBody)
+  --logger.warn("request", json.encode(requestBody))
+  --logger.warn("response", responseBody)
   if code == 200 then
     local data = json.decode(table.concat(responseBody), json.decode.simple)
     if data.data then
@@ -489,6 +489,11 @@ function HardcoverApi:updatePage(user_read_id, edition_id, page, started_at)
 end
 
 function HardcoverApi:updateUserBook(book_id, status_id, privacy_setting_id, edition_id)
+  if not privacy_setting_id then
+    local me = self:me()
+    privacy_setting_id = me.account_privacy_setting_id or 1
+  end
+
   local query = [[
     mutation ($object: UserBookCreateInput!) {
       insert_user_book(object: $object) {
@@ -543,7 +548,10 @@ function HardcoverApi:removeRead(user_book_id)
       }
     }
   ]]
-  return self:query(query, { id = user_book_id })
+  local result = self:query(query, { id = user_book_id })
+  if result then
+    return result.delete_user_book
+  end
 end
 
 function HardcoverApi:setRating(edition)
@@ -573,7 +581,12 @@ end
 
 
 function HardcoverApi:me()
-  return self:query("{ me { id, name }}").me[1]
+  return self:query([[{
+    me {
+      id
+      account_privacy_setting_id
+    }
+  }]]).me[1]
 end
 
 return HardcoverApi
