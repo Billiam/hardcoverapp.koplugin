@@ -257,7 +257,7 @@ function ListMenuItem:update()
     }
   else -- file
     self.file_deleted = self.entry.dim -- entry with deleted file from History or selected file from FM
-    local fgcolor = self.file_deleted and Blitbuffer.COLOR_DARK_GRAY or nil
+    local fgcolor = self.file_deleted or self.highlight and Blitbuffer.COLOR_DARK_GRAY or nil
 
     --local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
     local bookinfo = self.entry
@@ -299,7 +299,6 @@ function ListMenuItem:update()
           cover_bb_used = true
           -- Let ImageWidget do the scaling and give us the final size
           local _, _, scale_factor = BookInfoManager.getCachedCoverSize(bookinfo.cover_w, bookinfo.cover_h, max_img_w, max_img_h)
-
           local wimage = ImageWidget:new{
             image = bookinfo.cover_bb,
             scale_factor = scale_factor,
@@ -324,6 +323,14 @@ function ListMenuItem:update()
         else
           local fake_cover_w = max_img_w * 0.6
           local fake_cover_h = max_img_h
+
+          if bookinfo.cover_w and bookinfo.cover_h then
+            local _, _, scale_factor = BookInfoManager.getCachedCoverSize(bookinfo.cover_w, bookinfo.cover_h, max_img_w, max_img_h)
+
+            fake_cover_w = bookinfo.cover_w * scale_factor
+            fake_cover_h = bookinfo.cover_h * scale_factor
+          end
+
           wleft = CenterContainer:new{
             dimen = Geom:new{ w = wleft_width, h = wleft_height },
             FrameContainer:new{
@@ -504,6 +511,7 @@ function ListMenuItem:update()
         authors = nil
       else
         title = bookinfo.title and bookinfo.title or filename_without_suffix
+
         title = BD.auto(title)
         authors = bookinfo.authors
         -- If multiple authors (crengine separates them with \n), we
@@ -1005,6 +1013,7 @@ function ListMenu:_updateItemsBuildUI()
       height = self.item_height,
       width = self.item_width,
       entry = entry,
+      lazy_load_cover = entry.lazy_load_cover,
       text = getMenuText(entry),
       show_parent = self.show_parent,
       mandatory = entry.mandatory,
@@ -1022,7 +1031,7 @@ function ListMenu:_updateItemsBuildUI()
     -- this is for focus manager
     table.insert(self.layout, {item_tmp})
 
-    if not item_tmp.bookinfo_found and not item_tmp.is_directory and not item_tmp.file_deleted then
+    if (item_tmp.lazy_load_cover or not item_tmp.bookinfo_found) and not item_tmp.is_directory and not item_tmp.file_deleted then
       -- Register this item for update
       table.insert(self.items_to_update, item_tmp)
     end

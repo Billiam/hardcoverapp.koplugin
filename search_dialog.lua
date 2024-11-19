@@ -32,7 +32,7 @@ local function loadImage(url)
   return success, content
 end
 
-function HardcoverSearchDialog:bookItem(book, active_item)
+function HardcoverSearchDialog:createListItem(book, active_item)
   local info = ""
   local title = book.title
   local authors = {}
@@ -67,7 +67,7 @@ function HardcoverSearchDialog:bookItem(book, active_item)
     book_id = book.id,
     edition_id = book.edition_id,
     edition_format = book.edition_format,
-    dim = active
+    highlight = active,
   }
 
   if book.pages then
@@ -88,13 +88,10 @@ function HardcoverSearchDialog:bookItem(book, active_item)
   end
 
   if book.cached_image.url then
-    local status, cover_data = loadImage(book.cached_image.url)
-    if status then
-      result.cover_w = book.cached_image.width
-      result.cover_h = book.cached_image.height
-      result.has_cover = true
-      result.cover_bb = RenderImage:renderImageData(cover_data, #cover_data, false, result.cover_w, result.cover_h)
-    end
+    result.cover_url = book.cached_image.url
+    result.cover_w = book.cached_image.width
+    result.cover_h = book.cached_image.height
+    result.lazy_load_cover = true
   end
 
   return result
@@ -140,7 +137,7 @@ function HardcoverSearchDialog:init()
     dimen = Screen:getSize(),
     self.menu,
   }
-  self.menu.show_parent = self.container
+  self.menu.show_parent = self--.container
 
   self[1] = self.container
 end
@@ -164,7 +161,7 @@ end
 function HardcoverSearchDialog:parseItems(items, active_item)
   local list = {}
   for _, book in ipairs(items) do
-    table.insert(list, self:bookItem(book, active_item))
+    table.insert(list, self:createListItem(book, active_item))
   end
   return list
 end
