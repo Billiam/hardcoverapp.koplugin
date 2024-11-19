@@ -1,7 +1,6 @@
 --[[--
 @module koplugin.HardcoverApp
 --]]--
-
 --TODO: trap request loading
 local Api = require("hardcover_api")
 local DataStorage = require("datastorage")
@@ -18,6 +17,7 @@ local os = require("os")
 local math = require("math")
 local throttle = require("throttle")
 local DocSettings = require("docsettings")
+local InfoMessage = require("ui/widget/infomessage")
 
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",
@@ -61,6 +61,12 @@ local ICON_TRASH = "\u{F014}"
 local ICON_STAR = "\u{F005}"
 -- nf-fa-star_half
 local ICON_HALF_STAR = "\u{F089}"
+
+local SETTING_LINK_BY_ISBN = "link_by_isbn"
+local SETTING_LINK_BY_HARDCOVER = "link_by_hardcover"
+local SETTING_LINK_BY_TITLE = "link_by_title"
+local SETTING_ALWAYS_SYNC = "always_sync"
+local SETTING_DEFAULT_VISIBILITY = "default_visibility"
 
 local function parseIdentifiers(identifiers)
   result = {}
@@ -170,12 +176,17 @@ function HardcoverApp:onUpdatePos()
   self:cachePageMap()
 end
 
+-- TODO: event for loading reader?
 function HardcoverApp:onReaderReady()
   self:cachePageMap()
 
   local book_settings = self:_readBookSettings(self.view.document.file)
   if book_settings.book_id and book_settings.sync then
     self:cacheUserBook()
+  end
+
+  if not book_settings.book_id then
+    self:tryAutolink()
   end
 end
 
@@ -303,6 +314,9 @@ end
 
 function HardcoverApp:setSync(value)
   self:_updateBookSetting(self.view.document.file, { sync = value == true })
+  if not value then
+    self:_cancelPageUpdate()
+  end
 end
 
 function HardcoverApp:editionLinked()
@@ -337,7 +351,7 @@ end
 function HardcoverApp:syncEnabled()
   local sync_value = self:_readBookSetting(self.view.document.file, "sync")
   if sync_value == nil then
-    sync_value = self.settings:readSetting("always_sync")
+    sync_value = self.settings:readSetting(SETTING_ALWAYS_SYNC)
   end
   return sync_value == true
 end
@@ -363,7 +377,7 @@ function HardcoverApp:setPendingBookVisibility(visibility)
 end
 
 function HardcoverApp:defaultVisibility()
-  return self.settings:readSetting("default_visibility")
+  return self.settings:readSetting(SETTING_DEFAULT_VISIBILITY)
 end
 
 function HardcoverApp:linkBook(book)
@@ -391,13 +405,62 @@ function HardcoverApp:linkBook(book)
   self:cacheUserBook()
   if book.book_id and self.state.book_status.id then
     if new_settings.edition_id and new_settings.edition_id ~= self.state.book_status.edition_id then
+      -- update edition
       self.state.book_status = Api:updateUserBook(new_settings.book_id, self.state.book_status.status_id, self.state.book_status.privacy_setting_id, new_settings.edition_id) or {}
+    end
+
+    return true
+  end
+end
+
+
+function HardcoverApp:autolinkBook(book)
+  if book then
+    local linked = self:linkBook(book)
+    if linked then
+      UIManager:show(InfoMessage:new {
+        text = _("Linked to: " .. book.title),
+        timeout = 3
+      })
     end
   end
 end
 
+function HardcoverApp:linkBookByIsbn()
+  local props = self.view.document:getProps()
+
+  local identifiers = parseIdentifiers(props.identifiers)
+  if identifiers.isbn_10 or identifiers.isbn_13 then
+    local user_id = self:getUserId()
+    local book_lookup = Api:findBookByIdentifiers({ isbn_10 = identifiers.isbn_10, isbn_13 = identifiers.isbn_13 }, user_id)
+    self:autolinkBook(book_lookup)
+    return true
+  end
+end
+
+function HardcoverApp:linkBookByHardcover()
+  local props = self.view.document:getProps()
+
+  local identifiers = parseIdentifiers(props.identifiers)
+  if identifiers.book_slug or identifiers.edition_id then
+    local user_id = self:getUserId()
+    local book_lookup = Api:findBookByIdentifiers({ book_slug = identifiers.book_slug, edition_id = identifiers.edition_id }, user_id)
+    self:autolinkBook(book_lookup)
+  end
+end
+
+function HardcoverApp:linkBookByTitle()
+  local props = self.view.document:getProps()
+
+  local results = Api:findBooks(props.title, props.authors, self:getUserId())
+  if results and #results > 0 then
+    self:autolinkBook(results[1])
+    return true
+  end
+end
+
 function HardcoverApp:clearLink()
-  self:_updateBookSetting(self.view.document.file, { _delete = { 'book_id', 'title', 'edition_id' }})
+  self:_updateBookSetting(self.view.document.file, { _delete = { 'book_id', 'edition_id', 'edition_format', 'pages', 'title' }})
 end
 
 function HardcoverApp:getUserId()
@@ -444,8 +507,8 @@ function HardcoverApp:findBookOptions(force_search)
       return { book_lookup }
     end
   end
-  -- TODO: When search api is ready, parse title from filename if no title available
 
+  -- TODO: When search api is ready, parse title from filename if no title available
   return Api:findBooks(props.title, props.authors, user_id)
 end
 
@@ -532,9 +595,7 @@ function HardcoverApp:getSubMenuItems()
       end,
     },
     {
-      -- TODO: show edition format
       text_func = function()
-
         local edition_format = self:getLinkedEditionFormat()
         local title = "Change edition"
 
@@ -624,7 +685,11 @@ function HardcoverApp:updateBookStatus(filename, status, privacy_setting_id)
   local edition_id = settings.edition_id
   self.state.book_status = Api:updateUserBook(book_id, status, privacy_setting_id, edition_id) or {}
   self:clearPendingBookVisibility(filename)
-  -- TODO brief infobox for status updated
+
+  UIManager:show(InfoMessage:new {
+    text = _("Hardcover status saved"),
+    timout = 2
+  })
 end
 
 function HardcoverApp:changeBookVisibility(visibility)
@@ -682,7 +747,7 @@ function HardcoverApp:getDefaultVisibilitySubMenuItems()
         return visibility == PRIVACY_PUBLIC or visibility == nil
       end,
       callback = function()
-        self:_updateSetting("default_visibility", PRIVACY_PUBLIC)
+        self:_updateSetting(SETTING_DEFAULT_VISIBILITY, PRIVACY_PUBLIC)
       end,
       radio = true,
 
@@ -693,7 +758,7 @@ function HardcoverApp:getDefaultVisibilitySubMenuItems()
         return self:defaultVisibility() == PRIVACY_FOLLOWS
       end,
       callback = function()
-        self:_updateSetting("default_visibility", PRIVACY_FOLLOWS)
+        self:_updateSetting(SETTING_DEFAULT_VISIBILITY, PRIVACY_FOLLOWS)
       end,
       radio = true
     },
@@ -703,7 +768,7 @@ function HardcoverApp:getDefaultVisibilitySubMenuItems()
         return self:defaultVisibility() == PRIVACY_PRIVATE
       end,
       callback = function()
-        self:_updateSetting("default_visibility", PRIVACY_PRIVATE)
+        self:_updateSetting(SETTING_DEFAULT_VISIBILITY, PRIVACY_PRIVATE)
       end,
       radio = true
     },
@@ -865,52 +930,83 @@ function HardcoverApp:getStatusSubMenuItems()
   }
 end
 
+function HardcoverApp:tryAutolink()
+  if self:bookLinked() then
+    return
+  end
+
+  local linked = false
+  if self.settings:readSetting(SETTING_LINK_BY_ISBN) then
+    linked = self:linkBookByIsbn()
+  end
+
+  if not linked and self.settings:readSetting(SETTING_LINK_BY_HARDCOVER) then
+    linked = self:linkBookByHardcover()
+  end
+
+  if not linked and self.settings:readSetting(SETTING_LINK_BY_TITLE) then
+    linked = self:linkBookByTitle()
+  end
+end
+
 function HardcoverApp:getSettingsSubMenuItems()
   return {
     {
       text = "Automatically link by ISBN",
       checked_func = function()
-        return self.settings:readSetting("link_by_isbn") == true
+        return self.settings:readSetting(SETTING_LINK_BY_ISBN) == true
       end,
       callback = function()
-        local setting = self.settings:readSetting("link_by_isbn") == true
-        self:_updateSetting("link_by_isbn", not setting)
+        local setting = self.settings:readSetting(SETTING_LINK_BY_ISBN) == true
+        self:_updateSetting(SETTING_LINK_BY_ISBN, not setting)
+
+        if not setting then
+          self:tryAutolink()
+        end
       end
     },
     {
       text = "Automatically link by Hardcover identifiers",
       checked_func = function()
-        return self.settings:readSetting("link_by_hardcover") == true
+        return self.settings:readSetting(SETTING_LINK_BY_HARDCOVER) == true
       end,
       callback = function()
-        local setting = self.settings:readSetting("link_by_hardcover") == true
-        self:_updateSetting("link_by_hardcover", not setting)
+        local setting = self.settings:readSetting(SETTING_LINK_BY_HARDCOVER) == true
+        self:_updateSetting(SETTING_LINK_BY_HARDCOVER, not setting)
+
+        if not setting then
+          self:tryAutolink()
+        end
       end
     },
     {
       text = "Automatically link by title and author",
       checked_func = function()
-        return self.settings:readSetting("link_by_title") == true
+        return self.settings:readSetting(SETTING_LINK_BY_TITLE) == true
       end,
       callback = function()
-        local setting = self.settings:readSetting("link_by_title") == true
-        self:_updateSetting("link_by_title", not setting)
+        local setting = self.settings:readSetting(SETTING_LINK_BY_TITLE) == true
+        self:_updateSetting(SETTING_LINK_BY_TITLE, not setting)
+
+        if not setting then
+          self:tryAutolink()
+        end
       end
     },
     {
       text = "Always track progress by default",
       checked_func = function()
-        return self.settings:readSetting("always_sync") == true
+        return self.settings:readSetting(SETTING_ALWAYS_SYNC) == true
       end,
       callback = function()
-        local setting = self.settings:readSetting("always_sync") == true
-        self:_updateSetting("always_sync", not setting)
+        local setting = self.settings:readSetting(SETTING_ALWAYS_SYNC) == true
+        self:_updateSetting(SETTING_ALWAYS_SYNC, not setting)
       end
     },
     {
       text_func = function()
         local text = "Default status visibility"
-        local setting = self.settings:readSetting("default_visibility")
+        local setting = self.settings:readSetting(SETTING_DEFAULT_VISIBILITY)
         if setting then
           text = text .. ": " .. privacy_labels[setting]
         end

@@ -75,13 +75,78 @@ function escapeLike(str)
   return str:gsub("%%", "\\%%"):gsub("_", "\\_")
 end
 
+
+local function sortBooks(list, author)
+  local lower_author = author:lower()
+  -- split authors by ampersand, comma, trim
+  local index = {}
+
+  local author_match = function(author_name, contributor)
+    if not contributor.author then
+      return
+    end
+
+    if contributor.author.name:lower() == author_name then
+      return true
+    end
+
+    for _, alt in b.contributions.author.alternate_names do
+      if alt:lower() == author_name then
+        return true
+      end
+    end
+  end
+
+  -- index books before sorting
+  for _, b in ipairs(list) do
+    local r = {
+      user_read = b.user_books.id ~= nil,
+      author = false
+    }
+
+    if b.contributions.author then
+      r.author = author_match(lower_author, b.contributions)
+      if not r.author and #b.contributions then
+        for _, contributor in ipairs(b.contributions) do
+          if author_match(lower_author, contributor) then
+            r.author = true
+            break
+          end
+        end
+      end
+    end
+
+    index[b.id] = r
+  end
+
+  table.sort(list, function (a, b)
+    -- sort by user reads
+    local ia = index[a.id]
+    local ib = index[b.id]
+
+    if ia.user_read ~= ib.user_read then
+      return ia.user_read
+    end
+
+    if ia.author ~= ib.author then
+      return ia.author == true
+    end
+
+    if a.users_read_count ~= b.users_read_count then
+      return a.users_read_count > b.users_read_count
+    end
+
+    return a.title < b.title
+  end)
+end
+
 function HardcoverApi:query(query, parameters)
   local requestBody = {
     query = query,
     variables = parameters
   }
   local responseBody = {}
-
+  --local t = os:clock()
   local res, code, responseHeaders = https.request {
     url = api_url,
     method = "POST",
@@ -89,6 +154,7 @@ function HardcoverApi:query(query, parameters)
     source = ltn12.source.string(json.encode(requestBody)),
     sink = ltn12.sink.table(responseBody),
   }
+  --logger.warn("Request time", os:clock() - t)
   --logger.warn(requestBody)
   --logger.warn(responseBody)
   if code == 200 then
@@ -239,7 +305,7 @@ function HardcoverApi:search(title, author, userId, page)
 
   local ids = {}
 
-  for i,v in ipairs(results) do
+  for _, v in ipairs(results) do
     table.insert(ids, v.id)
   end
 
@@ -286,6 +352,7 @@ end
 
 function HardcoverApi:normalizedEdition(edition)
   local result = edition.book
+  result.book_id = result.id
 
   result.edition_id = edition.id
   result.edition_format = edition.edition_format
@@ -318,6 +385,7 @@ function HardcoverApi:findBooks(title, author, userId)
   --handling author vs title searching
   -- prefer matching author
   -- prefer books on user lists
+
   local queryString = [[
     query ($title: String!, $userId: Int!) {
       books(
@@ -340,54 +408,6 @@ function HardcoverApi:findBooks(title, author, userId)
   sortBooks(books.books, author)
 
   return books.books
-end
-
-function sortBooks(list, author)
-  local lower_author = author:lower()
-  -- split authors by ampersand, comma, trim
-  local index = {}
-
-  -- index books before sorting
-  for _i, b in ipairs(list) do
-    local r = {
-      user_read = b.user_books.id ~= nil,
-      author = false
-    }
-    -- TODO contributions may be an array of { author: {...}}
-    if b.contributions.author then
-      r.author = b.contributions.author.name:lower() == lower_author
-      if not r.author then
-        for j,a in b.contributions.author.alternate_names do
-          if a:lower() == lower_author then
-            r.author = true
-            break
-          end
-        end
-      end
-    end
-
-    index[b.id] = r
-  end
-
-  table.sort(list, function (a, b)
-    -- sort by user reads
-    local ia = index[a.id]
-    local ib = index[b.id]
-
-    if ia.user_read ~= ib.user_read then
-      return ia.user_read
-    end
-
-    if ia.author ~= ib.author then
-      return ia.author == true
-    end
-
-    if a.users_read_count ~= b.users_read_count then
-      return a.users_read_count > b.users_read_count
-    end
-
-    return a.title < b.title
-  end)
 end
 
 function HardcoverApi:createRead(user_book_id, edition_id, page, started_at)
@@ -482,7 +502,7 @@ function HardcoverApi:updateUserBook(book_id, status_id, privacy_setting_id, edi
 
   local update_args = {
     book_id = book_id,
-    privacy_setting_id = privacy_setting_id or 1,
+    privacy_setting_id = privacy_setting_id,
     status_id = status_id,
     edition_id = edition_id
   }
