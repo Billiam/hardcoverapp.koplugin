@@ -18,7 +18,7 @@ local os = require("os")
 local math = require("math")
 local throttle = require("throttle")
 local DocSettings = require("docsettings")
-]
+
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",
   is_doc_only = false,
@@ -36,6 +36,11 @@ local PRIVACY_PUBLIC = 1
 local PRIVACY_FOLLOWS = 2
 local PRIVACY_PRIVATE = 3
 
+local privacy_labels = {
+  [PRIVACY_PUBLIC] = "Public",
+  [PRIVACY_FOLLOWS] = "Follows",
+  [PRIVACY_PRIVATE] = "Private"
+}
 -- nf-fa-book
 local ICON_PHYSICAL_BOOK = "\u{F02D}"
 -- nf-fa-tablet
@@ -297,13 +302,7 @@ function HardcoverApp:_updateSetting(key, value)
 end
 
 function HardcoverApp:setSync(value)
-  local setting = {}
-  if value then
-    setting.sync = true
-  else
-    setting._delete = { "sync" }
-  end
-  self:_updateBookSetting(self.view.document.file, setting)
+  self:_updateBookSetting(self.view.document.file, { sync = value == true })
 end
 
 function HardcoverApp:editionLinked()
@@ -336,7 +335,11 @@ function HardcoverApp:getLinkedEditionId()
 end
 
 function HardcoverApp:syncEnabled()
-  return self:_readBookSetting(self.view.document.file, "sync") == true
+  local sync_value = self:_readBookSetting(self.view.document.file, "sync")
+  if sync_value == nil then
+    sync_value = self.settings:readSetting("always_sync")
+  end
+  return sync_value == true
 end
 
 function HardcoverApp:pendingBookVisibility()
@@ -637,7 +640,7 @@ end
 function HardcoverApp:getVisibilitySubMenuItems()
   return {
     {
-      text = _("Public"),
+      text = _(privacy_labels[PRIVACY_PUBLIC]),
       checked_func = function()
         local visibility = self:effectiveVisibilitySetting()
         return visibility == PRIVACY_PUBLIC or visibility == nil
@@ -649,7 +652,7 @@ function HardcoverApp:getVisibilitySubMenuItems()
 
     },
     {
-      text = _("Follows"),
+      text = _(privacy_labels[PRIVACY_FOLLOWS]),
       checked_func = function()
         return self:effectiveVisibilitySetting() == PRIVACY_FOLLOWS
       end,
@@ -659,7 +662,7 @@ function HardcoverApp:getVisibilitySubMenuItems()
       radio = true
     },
     {
-      text = _("Private"),
+      text = _(privacy_labels[PRIVACY_PRIVATE]),
       checked_func = function()
         return self:effectiveVisibilitySetting() == PRIVACY_PRIVATE
       end,
@@ -674,7 +677,7 @@ end
 function HardcoverApp:getDefaultVisibilitySubMenuItems()
   return {
     {
-      text = _("Public"),
+      text = _(privacy_labels[PRIVACY_PUBLIC]),
       checked_func = function()
         local visibility = self:defaultVisibility()
         return visibility == PRIVACY_PUBLIC or visibility == nil
@@ -686,7 +689,7 @@ function HardcoverApp:getDefaultVisibilitySubMenuItems()
 
     },
     {
-      text = _("Follows"),
+      text = _(privacy_labels[PRIVACY_FOLLOWS]),
       checked_func = function()
         return self:defaultVisibility() == PRIVACY_FOLLOWS
       end,
@@ -696,7 +699,7 @@ function HardcoverApp:getDefaultVisibilitySubMenuItems()
       radio = true
     },
     {
-      text = _("Private"),
+      text = _(privacy_labels[PRIVACY_PRIVATE]),
       checked_func = function()
         return self:defaultVisibility() == PRIVACY_PRIVATE
       end,
@@ -884,19 +887,25 @@ function HardcoverApp:getSettingsSubMenuItems()
       end,
     },
     {
-      text = "Update frequency",
-      -- every (x) minutes
-      -- before exit/sleep? (when done reading)
-        -- when book closed, maybe opened
-    },
-    {
       text = "Always track progress by default",
       checked_func = function()
-        return false
+        return self.settings:readSetting("always_sync") == true
       end,
+      callback = function()
+        local setting = self.settings:readSetting("always_sync") == true
+        self:_updateSetting("always_sync", not setting)
+      end
     },
     {
-      text = _("Default status visibility"),
+      text_func = function()
+        local text = "Default status visibility"
+        local setting = self.settings:readSetting("default_visibility")
+        if setting then
+          text = text .. ": " .. privacy_labels[setting]
+        end
+
+        return _(text)
+      end,
       sub_item_table_func = function()
         return self:getDefaultVisibilitySubMenuItems()
       end
