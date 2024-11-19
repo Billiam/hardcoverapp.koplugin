@@ -17,7 +17,8 @@ local logger = require("logger")
 local os = require("os")
 local math = require("math")
 local throttle = require("throttle")
-
+local DocSettings = require("docsettings")
+]
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",
   is_doc_only = false,
@@ -180,6 +181,58 @@ end
 
 function HardcoverApp:onSuspend()
   self:_cancelPageUpdate()
+end
+
+function HardcoverApp:onEndOfBook()
+  local file_path = self.view.document.file
+  local book_settings = self:_readBookSettings(file_path)
+
+  if not book_settings.book_id or not book_settings.sync then
+    return
+  end
+
+  local mark_read = false
+  if G_reader_settings:isTrue("end_document_auto_mark") then
+    mark_read = true
+  end
+
+  if not mark_read then
+    local action = G_reader_settings:readSetting("end_document_action") or "pop-up"
+    mark_read = action == "mark_read"
+
+    if action == popup then
+      mark_read = 'later'
+    end
+  end
+
+  if not mark_read then
+    return
+  end
+
+  local user_id = self:getUserId()
+
+  local marker = function()
+    local user_book = Api:findUserBook(book_settings.book_id, user_id) or {}
+    local privacy_setting_id = user_book.privacy_setting_id or user_book.pending_visibility or self:defaultVisibility()
+    self:updateBookStatus(file_path, STATUS_FINISHED, privacy_setting_id)
+  end
+
+  if mark_read == 'later' then
+    UIManager:scheduleIn(15, function()
+      local status = "reading"
+      if DocSettings:hasSidecarFile(file_path) then
+        local summary = DocSettings:open(file_path):readSetting("summary")
+        if summary and summary.status and summary.status ~= "" then
+          status = summary.status
+        end
+      end
+      if status == "complete" then
+        marker()
+      end
+    end)
+  else
+    marker()
+  end
 end
 
 function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
@@ -569,6 +622,7 @@ function HardcoverApp:updateBookStatus(filename, status, privacy_setting_id)
   local edition_id = settings.edition_id
   self.state.book_status = Api:updateUserBook(book_id, status, privacy_setting_id, edition_id) or {}
   self:clearPendingBookVisibility(filename)
+  -- TODO brief infobox for status updated
 end
 
 function HardcoverApp:changeBookVisibility(visibility)
@@ -763,14 +817,17 @@ function HardcoverApp:getStatusSubMenuItems()
     },
     {
       text_func = function()
-        local text = "Update rating"
+        local text
         if self.state.book_status.rating then
+          text = "Update rating"
           local whole_star = math.floor(self.state.book_status.rating)
           local star_string = string.rep(ICON_STAR, whole_star)
           if self.state.book_status.rating - whole_star > 0 then
             star_string = star_string .. ICON_HALF_STAR
           end
           text = text .. ": " .. star_string
+        else
+          text = "Set rating"
         end
 
         return _(text)
