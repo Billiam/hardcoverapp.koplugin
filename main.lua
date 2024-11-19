@@ -870,20 +870,32 @@ function HardcoverApp:getSettingsSubMenuItems()
     {
       text = "Automatically link by ISBN",
       checked_func = function()
-        return false
+        return self.settings:readSetting("link_by_isbn") == true
       end,
+      callback = function()
+        local setting = self.settings:readSetting("link_by_isbn") == true
+        self:_updateSetting("link_by_isbn", not setting)
+      end
     },
     {
       text = "Automatically link by Hardcover identifiers",
       checked_func = function()
-        return false
+        return self.settings:readSetting("link_by_hardcover") == true
       end,
+      callback = function()
+        local setting = self.settings:readSetting("link_by_hardcover") == true
+        self:_updateSetting("link_by_hardcover", not setting)
+      end
     },
     {
       text = "Automatically link by title and author",
       checked_func = function()
-        return false
+        return self.settings:readSetting("link_by_title") == true
       end,
+      callback = function()
+        local setting = self.settings:readSetting("link_by_title") == true
+        self:_updateSetting("link_by_title", not setting)
+      end
     },
     {
       text = "Always track progress by default",
