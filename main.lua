@@ -925,6 +925,13 @@ function HardcoverApp:getStatusSubMenuItems()
         }
         UIManager:show(spinner)
       end,
+      hold_callback = function(menu_instance)
+        local result = Api:updateRating(self.state.book_status.id, 0)
+        if result then
+          self.state.book_status = result
+          menu_instance:updateItems()
+        end
+      end,
       keep_menu_open = true,
     }
   }

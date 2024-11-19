@@ -515,7 +515,7 @@ end
 
 function HardcoverApi:updateRating(user_book_id, rating)
   local query = [[
-    mutation ($id: Int!, $rating: numeric!) {
+    mutation ($id: Int!, $rating: numeric) {
       update_user_book(id: $id, object: { rating: $rating }) {
         error
         user_book {
@@ -524,6 +524,10 @@ function HardcoverApi:updateRating(user_book_id, rating)
       }
     }
   ]] .. user_book_fragment
+
+  if rating == 0 or rating == nil then
+    rating = json.util.null
+  end
 
   local result = self:query(query, { id = user_book_id, rating = rating })
   if result and result.update_user_book then
