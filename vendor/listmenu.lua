@@ -257,30 +257,9 @@ function ListMenuItem:update()
     }
   else -- file
     self.file_deleted = self.entry.dim -- entry with deleted file from History or selected file from FM
-    local fgcolor = self.file_deleted and Blitbuffer.COLOR_DARK_GRAY or nil
+    local fgcolor = (self.file_deleted or self.entry.highlight) and Blitbuffer.COLOR_DARK_GRAY or nil
 
-    local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
-
-    if bookinfo and self.do_cover_image and not bookinfo.ignore_cover and not self.file_deleted then
-      if bookinfo.cover_fetched then
-        if bookinfo.has_cover and not self.menu.no_refresh_covers then
-          if BookInfoManager.isCachedCoverInvalid(bookinfo, cover_specs) then
-            -- there is a thumbnail, but it's smaller than is needed for new grid dimensions,
-            -- and it would be ugly if scaled up to the required size:
-            -- do as if not found to force a new extraction with our size
-            if bookinfo.cover_bb then
-              bookinfo.cover_bb:free()
-            end
-            bookinfo = nil
-          end
-        end
-        -- if not has_cover, book has no cover, no need to try again
-      else
-        -- cover was not fetched previously, do as if not found
-        -- to force a new extraction
-        bookinfo = nil
-      end
-    end
+    local bookinfo = self.entry
 
     if bookinfo then -- This book is known
       self.bookinfo_found = true
@@ -321,6 +300,14 @@ function ListMenuItem:update()
         else
           local fake_cover_w = max_img_w * 0.6
           local fake_cover_h = max_img_h
+
+          if bookinfo.cover_w and bookinfo.cover_h then
+            local _, _, scale_factor = BookInfoManager.getCachedCoverSize(bookinfo.cover_w, bookinfo.cover_h, max_img_w, max_img_h)
+
+            fake_cover_w = bookinfo.cover_w * scale_factor
+            fake_cover_h = bookinfo.cover_h * scale_factor
+          end
+
           wleft = CenterContainer:new{
             dimen = Geom:new{ w = wleft_width, h = wleft_height },
             FrameContainer:new{
@@ -373,6 +360,10 @@ function ListMenuItem:update()
       -- right widget, first line
       local directory, filename = util.splitFilePathName(self.filepath) -- luacheck: no unused
       local filename_without_suffix, filetype = filemanagerutil.splitFileNameType(filename)
+      if bookinfo.filetype then
+        filetype = bookinfo.filetype
+      end
+
       local fileinfo_str
       if bookinfo._no_provider then
         -- for unsupported files: don't show extension on the right,
@@ -1001,6 +992,7 @@ function ListMenu:_updateItemsBuildUI()
       height = self.item_height,
       width = self.item_width,
       entry = entry,
+      lazy_load_cover = entry.lazy_load_cover,
       text = getMenuText(entry),
       show_parent = self.show_parent,
       mandatory = entry.mandatory,
@@ -1018,7 +1010,7 @@ function ListMenu:_updateItemsBuildUI()
     -- this is for focus manager
     table.insert(self.layout, {item_tmp})
 
-    if not item_tmp.bookinfo_found and not item_tmp.is_directory and not item_tmp.file_deleted then
+    if (item_tmp.lazy_load_cover or not item_tmp.bookinfo_found) and not item_tmp.is_directory and not item_tmp.file_deleted then
       -- Register this item for update
       table.insert(self.items_to_update, item_tmp)
     end
