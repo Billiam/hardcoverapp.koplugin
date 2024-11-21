@@ -5,16 +5,14 @@ local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
 local logger = require("logger")
 local _ = require("gettext")
-local ImageLoader = require("image_loader")
-local RenderImage = require("ui/renderimage")
 
 local BookInfoManager = require("bookinfomanager")
 
 -- This is a kind of "base class" for both MosaicMenu and ListMenu.
 -- It implements the common code shared by these, mostly the non-UI
--- work : the updating of items and the management of backgrouns jobs.
+-- work : the updating of items and the management of background jobs.
 --
--- Here are defined the common overriden methods of Menu:
+-- Here the common overridden methods of Menu are defined:
 --    :updateItems(select_number)
 --    :onCloseWidget()
 --
@@ -93,17 +91,14 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
   self.page_info:resetLayout()
   self.return_button:resetLayout()
   self.content_group:resetLayout()
-  -- default to select the first item
-  if not select_number then
-    select_number = 1
-  end
 
   -- Reset the list of items not found in db that will need to
   -- be updated by a scheduled action
   self.items_to_update = {}
   -- Cancel any previous (now obsolete) scheduled update
-  if self.halt_image_loading then
-    self.halt_image_loading()
+  if self.items_update_action then
+    UIManager:unschedule(self.items_update_action)
+    self.items_update_action = nil
   end
 
   -- Force garbage collecting before drawing a new page.
@@ -122,7 +117,7 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
   -- when memory usage is already high
   nb_drawings_since_last_collectgarbage = nb_drawings_since_last_collectgarbage + 1
   if nb_drawings_since_last_collectgarbage >= NB_DRAWINGS_BETWEEN_COLLECTGARBAGE then
-    -- (delay it a bit so this pause is less noticable)
+    -- (delay it a bit so this pause is less noticeable)
     UIManager:scheduleIn(0.2, function()
       collectgarbage()
       collectgarbage()
@@ -132,12 +127,11 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
 
   -- Specific UI building implementation (defined in some other module)
   self._has_cover_images = false
-  self:_updateItemsBuildUI()
-
+  select_number = self:_updateItemsBuildUI() or select_number
   -- Set the local variables with the things we know
   -- These are used only by extractBooksInDirectory(), which should
   -- use the cover_specs set for FileBrowser, and not those from History.
-  -- Hopefully, we get self.path=nil when called fro History
+  -- Hopefully, we get self.path=nil when called from History
   if self.path then
     current_path = self.path
     current_cover_specs = self.cover_specs
@@ -145,6 +139,7 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
 
   -- As done in Menu:updateItems()
   self:updatePageInfo(select_number)
+  Menu.mergeTitleBarIntoLayout(self)
 
   self.show_parent.dithered = self._has_cover_images
   UIManager:setDirty(self.show_parent, function()
@@ -159,52 +154,70 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
     self.path_items[self.path] = (self.page - 1) * self.perpage + (select_number or 1)
   end
 
-  local image_batch
+  -- Deal with items not found in db
   if #self.items_to_update > 0 then
-    local images = {}
-    local items_by_cover_url = {}
+    -- Prepare for background info extraction job
+    local files_to_index = {} -- table of {filepath, cover_specs}
     for i=1, #self.items_to_update do
-      local item = self.items_to_update[i]
-      if item.lazy_load_cover then
-        table.insert(images, item.entry.cover_url)
-        if not items_by_cover_url[item.entry.cover_url] then
-          items_by_cover_url[item.entry.cover_url] = {item}
+      table.insert(files_to_index, {
+        filepath = self.items_to_update[i].filepath,
+        cover_specs = self.items_to_update[i].cover_specs
+      })
+    end
+    -- Launch it at nextTick, so UIManager can render us smoothly
+    UIManager:nextTick(function()
+      local launched = BookInfoManager:extractInBackground(files_to_index)
+      if not launched then -- fork failed (never experienced that, but let's deal with it)
+        -- Cancel scheduled update, as it won't get any result
+        if self.items_update_action then
+          UIManager:unschedule(self.items_update_action)
+          self.items_update_action = nil
+        end
+        UIManager:show(InfoMessage:new{
+          text = _("Start-up of background extraction job failed.\nPlease restart KOReader or your device.")
+        })
+      end
+    end)
+
+    -- Scheduled update action
+    self.items_update_action = function()
+      logger.dbg("Scheduled items update:", #self.items_to_update, "waiting")
+      local is_still_extracting = BookInfoManager:isExtractingInBackground()
+      local i = 1
+      while i <= #self.items_to_update do -- process and clean in-place
+        local item = self.items_to_update[i]
+        item:update()
+        if item.bookinfo_found then
+          logger.dbg("  found", item.text)
+          self.show_parent.dithered = item._has_cover_image
+          local refreshfunc = function()
+            if item.refresh_dimen then
+              -- MosaicMenuItem may exceed its own dimen in its paintTo
+              -- with its "description" hint
+              return "ui", item.refresh_dimen, self.show_parent.dithered
+            else
+              return "ui", item[1].dimen, self.show_parent.dithered
+            end
+          end
+          UIManager:setDirty(self.show_parent, refreshfunc)
+          table.remove(self.items_to_update, i)
         else
-          table.insert(items_by_cover_url[item.entry.cover_url], item)
+          logger.dbg("  not yet found", item.text)
+          i = i + 1
         end
       end
+      if #self.items_to_update > 0 then -- re-schedule myself
+        if is_still_extracting then -- we have still chances to get new stuff
+          logger.dbg("re-scheduling items update:", #self.items_to_update, "still waiting")
+          UIManager:scheduleIn(1, self.items_update_action)
+        else
+          logger.dbg("Not all items found, but background extraction has stopped, not re-scheduling")
+        end
+      else
+        logger.dbg("items update completed")
+      end
     end
-    self.items_to_update = {}
-
-    if #images > 0 then
-      UIManager:scheduleIn(1, function()
-        image_batch, self.halt_image_loading = ImageLoader:loadImages(images, function(url, content)
-          for _,item in ipairs(items_by_cover_url[url]) do
-            item.entry.lazy_load_cover = false
-            item.entry.has_cover = true
-
-            item.entry.cover_bb = RenderImage:renderImageData(content, #content, false, item.cover_w, item.cover_h)
-            item.entry.cover_bb:setAllocated(1)
-            item:update()
-
-            self.show_parent.dithered = item._has_cover_image
-
-            local refreshfunc = function()
-              if item.refresh_dimen then
-                -- MosaicMenuItem may exceed its own dimen in its paintTo
-                -- with its "description" hint
-                return "ui", item.refresh_dimen, self.show_parent.dithered
-              else
-                return "ui", item[1].dimen, self.show_parent.dithered
-              end
-            end
-
-            UIManager:setDirty(self.show_parent, refreshfunc)
-          end
-        end)
-      end)
-    end
-
+    UIManager:scheduleIn(1, self.items_update_action)
   end
 
   -- (We may not need to do the following if we extend showFileDialog
@@ -304,7 +317,6 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
       self.showFileDialog_ours = self.showFileDialog
     end)
   end
-  Menu.mergeTitleBarIntoLayout(self)
 end
 
 -- Similar to showFileDialog setup just above, but for History,
@@ -456,7 +468,6 @@ function CoverMenu:onCloseWidget()
   if self._covermenu_onclose_done then
     return
   end
-
   self._covermenu_onclose_done = true
 
   -- Stop background job if any (so that full cpu is available to reader)
@@ -466,14 +477,10 @@ function CoverMenu:onCloseWidget()
   BookInfoManager:cleanUp() -- clean temporary resources
 
   -- Cancel any still scheduled update
-  if self.halt_image_loading then
-    self.halt_image_loading()
-  end
-
-  for _,v in ipairs(self.item_table) do
-    if v.cover_bb then
-      v.cover_bb:free()
-    end
+  if self.items_update_action then
+    logger.dbg("CoverMenu:onCloseWidget: unscheduling items_update_action")
+    UIManager:unschedule(self.items_update_action)
+    self.items_update_action = nil
   end
 
   -- Propagate a call to free() to all our sub-widgets, to release memory used by their _bb
@@ -483,7 +490,7 @@ function CoverMenu:onCloseWidget()
   self.cover_info_cache = nil
 
   -- Force garbage collecting when leaving too
-  -- (delay it a bit so this pause is less noticable)
+  -- (delay it a bit so this pause is less noticeable)
   UIManager:scheduleIn(0.2, function()
     collectgarbage()
     collectgarbage()

@@ -150,13 +150,13 @@ function ListMenuItem:init()
     },
   }
 
-  -- We now build the minimal widget container that won't change after udpate()
+  -- We now build the minimal widget container that won't change after update()
 
   -- As done in MenuItem
   -- for compatibility with keyboard navigation
   -- (which does not seem to work well when multiple pages,
   -- even with classic menu)
-  self.underline_h = 1 -- smaller than default (3) to not shift our vertical aligment
+  self.underline_h = 1 -- smaller than default (3) to not shift our vertical alignment
   self._underline_container = UnderlineContainer:new{
     vertical_align = "top",
     padding = 0,
@@ -176,7 +176,7 @@ function ListMenuItem:init()
 end
 
 function ListMenuItem:update()
-  -- We will be a disctinctive widget whether we are a directory,
+  -- We will be a distinctive widget whether we are a directory,
   -- a known file with image / without image, or a not yet known file
   local widget
 
@@ -239,16 +239,16 @@ function ListMenuItem:update()
       height_overflow_show_ellipsis = true,
     }
     widget = OverlapGroup:new{
-      dimen = dimen,
+      dimen = dimen:copy(),
       LeftContainer:new{
-        dimen = dimen,
+        dimen = dimen:copy(),
         HorizontalGroup:new{
           HorizontalSpan:new{ width = pad_width },
           wleft,
         }
       },
       RightContainer:new{
-        dimen = dimen,
+        dimen = dimen:copy(),
         HorizontalGroup:new{
           wright,
           HorizontalSpan:new{ width = pad_width },
@@ -257,32 +257,30 @@ function ListMenuItem:update()
     }
   else -- file
     self.file_deleted = self.entry.dim -- entry with deleted file from History or selected file from FM
-    local fgcolor = (self.file_deleted or self.entry.highlight) and Blitbuffer.COLOR_DARK_GRAY or nil
+    local fgcolor = self.file_deleted and Blitbuffer.COLOR_DARK_GRAY or nil
 
-    --local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
-    local bookinfo = self.entry
+    local bookinfo = BookInfoManager:getBookInfo(self.filepath, self.do_cover_image)
 
-    --if bookinfo and self.do_cover_image and not bookinfo.ignore_cover and not self.file_deleted then
-    --  if bookinfo.cover_fetched then
-    --    if bookinfo.has_cover and not self.menu.no_refresh_covers then
-    --      if BookInfoManager.isCachedCoverInvalid(bookinfo, cover_specs) then
-    --        -- there is a thumbnail, but it's smaller than is needed for new grid dimensions,
-    --        -- and it would be ugly if scaled up to the required size:
-    --        -- do as if not found to force a new extraction with our size
-    --        if bookinfo.cover_bb then
-    --          bookinfo.cover_bb:free()
-    --        end
-    --        bookinfo = nil
-    --      end
-    --    end
-    --    -- if not has_cover, book has no cover, no need to try again
-    --  else
-    --    -- cover was not fetched previously, do as if not found
-    --    -- to force a new extraction
-    --    logger.warn("forcing new extraction")
-    --    bookinfo = nil
-    --  end
-    --end
+    if bookinfo and self.do_cover_image and not bookinfo.ignore_cover and not self.file_deleted then
+      if bookinfo.cover_fetched then
+        if bookinfo.has_cover and not self.menu.no_refresh_covers then
+          if BookInfoManager.isCachedCoverInvalid(bookinfo, cover_specs) then
+            -- there is a thumbnail, but it's smaller than is needed for new grid dimensions,
+            -- and it would be ugly if scaled up to the required size:
+            -- do as if not found to force a new extraction with our size
+            if bookinfo.cover_bb then
+              bookinfo.cover_bb:free()
+            end
+            bookinfo = nil
+          end
+        end
+        -- if not has_cover, book has no cover, no need to try again
+      else
+        -- cover was not fetched previously, do as if not found
+        -- to force a new extraction
+        bookinfo = nil
+      end
+    end
 
     if bookinfo then -- This book is known
       self.bookinfo_found = true
@@ -302,7 +300,6 @@ function ListMenuItem:update()
           local wimage = ImageWidget:new{
             image = bookinfo.cover_bb,
             scale_factor = scale_factor,
-            image_disposable = false
           }
           wimage:_render()
           local image_size = wimage:getSize() -- get final widget size
@@ -324,14 +321,6 @@ function ListMenuItem:update()
         else
           local fake_cover_w = max_img_w * 0.6
           local fake_cover_h = max_img_h
-
-          if bookinfo.cover_w and bookinfo.cover_h then
-            local _, _, scale_factor = BookInfoManager.getCachedCoverSize(bookinfo.cover_w, bookinfo.cover_h, max_img_w, max_img_h)
-
-            fake_cover_w = bookinfo.cover_w * scale_factor
-            fake_cover_h = bookinfo.cover_h * scale_factor
-          end
-
           wleft = CenterContainer:new{
             dimen = Geom:new{ w = wleft_width, h = wleft_height },
             FrameContainer:new{
@@ -352,7 +341,7 @@ function ListMenuItem:update()
           }
         end
       end
-      -- In case we got a blitbuffer and didnt use it (ignore_cover), free it
+      -- In case we got a blitbuffer and didn't use it (ignore_cover), free it
       if bookinfo.cover_bb and not cover_bb_used then
         bookinfo.cover_bb:free()
       end
@@ -384,13 +373,9 @@ function ListMenuItem:update()
       -- right widget, first line
       local directory, filename = util.splitFilePathName(self.filepath) -- luacheck: no unused
       local filename_without_suffix, filetype = filemanagerutil.splitFileNameType(filename)
-      if bookinfo.filetype then
-        filetype = bookinfo.filetype
-      end
-
       local fileinfo_str
       if bookinfo._no_provider then
-        -- for unspported files: don't show extension on the right,
+        -- for unsupported files: don't show extension on the right,
         -- keep it in filename
         filename_without_suffix = filename
         fileinfo_str = self.mandatory
@@ -504,7 +489,7 @@ function ListMenuItem:update()
       -- whether to use or not title and authors
       -- (We wrap each metadata text with BD.auto() to get for each of them
       -- the text direction from the first strong character - which should
-      -- individually be the best thing, and additionnaly prevent shuffling
+      -- individually be the best thing, and additionally prevent shuffling
       -- if concatenated.)
       if self.do_filename_only or bookinfo.ignore_meta then
         title = filename_without_suffix -- made out above
@@ -512,7 +497,6 @@ function ListMenuItem:update()
         authors = nil
       else
         title = bookinfo.title and bookinfo.title or filename_without_suffix
-
         title = BD.auto(title)
         authors = bookinfo.authors
         -- If multiple authors (crengine separates them with \n), we
@@ -655,7 +639,7 @@ function ListMenuItem:update()
       end
 
       local wmain = LeftContainer:new{
-        dimen = dimen,
+        dimen = dimen:copy(),
         VerticalGroup:new{
           wtitle,
           wauthors,
@@ -664,7 +648,7 @@ function ListMenuItem:update()
 
       -- Build the final widget
       widget = OverlapGroup:new{
-        dimen = dimen,
+        dimen = dimen:copy(),
       }
       if self.do_cover_image then
         -- add left widget
@@ -689,13 +673,13 @@ function ListMenuItem:update()
       end
       -- add padded main widget
       table.insert(widget, LeftContainer:new{
-        dimen = dimen,
+        dimen = dimen:copy(),
         wmain
       })
       -- add right widget
       if wright then
         table.insert(widget, RightContainer:new{
-          dimen = dimen,
+          dimen = dimen:copy(),
           HorizontalGroup:new{
             wright,
             HorizontalSpan:new{ width = wright_right_padding },
@@ -735,7 +719,7 @@ function ListMenuItem:update()
           face = Font:getFace("cfont", fontsize_info),
           fgcolor = fgcolor,
         }
-        local wpageinfo = TextWidget:new{ -- Empty but needed for similar positionning
+        local wpageinfo = TextWidget:new{ -- Empty but needed for similar positioning
           text = "",
           face = Font:getFace("cfont", fontsize_info),
         }
@@ -774,7 +758,7 @@ function ListMenuItem:update()
         fontsize_no_bookinfo = fontsize_no_bookinfo - fontsize_dec_step
       until text_widget:getSize().h <= dimen.h
       widget = LeftContainer:new{
-        dimen = dimen,
+        dimen = dimen:copy(),
         HorizontalGroup:new{
           HorizontalSpan:new{ width = Screen:scaleBySize(10) },
           text_widget
@@ -782,10 +766,10 @@ function ListMenuItem:update()
       }
       if wright then -- last read date, in History, even for deleted files
         widget = OverlapGroup:new{
-          dimen = dimen,
+          dimen = dimen:copy(),
           widget,
           RightContainer:new{
-            dimen = dimen,
+            dimen = dimen:copy(),
             HorizontalGroup:new{
               wright,
               HorizontalSpan:new{ width = wright_right_padding },
@@ -915,7 +899,6 @@ function ListMenu:_recalculateDimen()
       self.others_height = self.others_height + 2
     end
     if not self.no_title then
-      self.others_height = self.others_height + self.header_padding
       self.others_height = self.others_height + self.title_bar.dimen.h
     end
     if self.page_info then
@@ -998,11 +981,15 @@ function ListMenu:_updateItemsBuildUI()
   }
   table.insert(self.item_group, line_widget)
   local idx_offset = (self.page - 1) * self.perpage
+  local select_number
   for idx = 1, self.perpage do
     local index = idx_offset + idx
     local entry = self.item_table[index]
     if entry == nil then break end
     entry.idx = index
+    if index == self.itemnumber then -- focused item
+      select_number = idx
+    end
     -- Keyboard shortcuts, as done in Menu
     local item_shortcut, shortcut_style
     if self.is_enable_shortcut then
@@ -1014,7 +1001,6 @@ function ListMenu:_updateItemsBuildUI()
       height = self.item_height,
       width = self.item_width,
       entry = entry,
-      lazy_load_cover = entry.lazy_load_cover,
       text = getMenuText(entry),
       show_parent = self.show_parent,
       mandatory = entry.mandatory,
@@ -1032,12 +1018,13 @@ function ListMenu:_updateItemsBuildUI()
     -- this is for focus manager
     table.insert(self.layout, {item_tmp})
 
-    if (item_tmp.lazy_load_cover or not item_tmp.bookinfo_found) and not item_tmp.is_directory and not item_tmp.file_deleted then
+    if not item_tmp.bookinfo_found and not item_tmp.is_directory and not item_tmp.file_deleted then
       -- Register this item for update
       table.insert(self.items_to_update, item_tmp)
     end
 
   end
+  return select_number
 end
 
 return ListMenu
