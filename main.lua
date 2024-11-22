@@ -901,7 +901,6 @@ function HardcoverApp:getStatusSubMenuItems()
         local result = Api:removeRead(self.state.book_status.id)
         if result and result.id then
           self.state.book_status = {}
-          logger.warn("Updating menu instance")
           menu_instance:updateItems()
         end
       end,
