@@ -48,13 +48,10 @@ local function comma_split(text)
 end
 
 function JournalDialog:init()
-  if self.input then
-    -- TODO: false if editing
-    self._text_modified = true
-  end
+  self:setModified()
 
   self.save_callback = function()
-    self.save_dialog_callback({
+    return self.save_dialog_callback({
       book_id = self.book_id,
       edition_id = self.edition_id,
       text = self.input,
@@ -199,6 +196,16 @@ function JournalDialog:setEdition(edition_id, edition_format, edition_pages)
 
   self.page_button:setText(self.page_button.text_func(), self.page_button.width)
   self.edition_button:setText(self.edition_button.text_func(), self.edition_button.width)
+end
+
+function JournalDialog:setModified()
+  if self.input then
+    self._text_modified = true
+    if self.button_table then
+      self.button_table:getButtonById("save"):enable()
+      self:refreshButtons()
+    end
+  end
 end
 
 -- copied from MultiInputDialog.lua

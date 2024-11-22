@@ -119,6 +119,14 @@ local function parseIdentifiers(identifiers)
   return result
 end
 
+local function showError(err)
+  UIManager:show(InfoMessage:new{
+    text = err,
+    icon = "notice-warning",
+    timeout = 2
+  })
+end
+
 function HardcoverApp:onDispatcherRegisterActions()
   Dispatcher:registerAction("hardcover_link", { category = "none", event = "HardcoverLink", title = _("Hardcover Link"), general = true, })
 end
@@ -353,7 +361,7 @@ local function map_journal_data(data)
     end
   end
 
-  if #tags > 0 then
+  if tags and #tags > 0 then
     result.tags = tags
   end
 
@@ -399,15 +407,12 @@ function HardcoverApp:journalEntryForm(text, page, document_pages, remote_pages,
       local api_data = map_journal_data(book_data)
       local result = Api:createJournalEntry(api_data)
       if result then
-        UIManager:close(dialog)
         UIManager:nextTick(function()
-          UIManager:show(InfoMessage:new {
-            text = _(event_type .. " saved"),
-            timeout = 2
-          })
+          UIManager:close(dialog)
         end)
+        return true, _(event_type .. " saved")
       else
-        -- show error
+        return false, _(event_type .. " could not be saved")
       end
     end,
     select_edition_callback = function()
@@ -844,7 +849,8 @@ Updates book progress and status on hardcover.app
 
 github.com/billiam/hardcoverapp.koplugin
 
-Settings: ]] .. settings_file
+Settings: ]] .. settings_file,
+          show_icon = false
         })
       end,
       keep_menu_open = true
@@ -854,6 +860,9 @@ end
 
 function HardcoverApp:updateCurrentBookStatus(status, privacy_setting_id)
   self:updateBookStatus(self.view.document.file, status, privacy_setting_id)
+  if not self.state.book_status.id then
+    showError("Book status could not be updated")
+  end
 end
 
 function HardcoverApp:updateBookStatus(filename, status, privacy_setting_id)
@@ -1006,6 +1015,8 @@ function HardcoverApp:getStatusSubMenuItems()
             if result then
               self.state.book_status = result
               menu_instance:updateItems()
+            else
+
             end
           end
         }
@@ -1066,6 +1077,8 @@ function HardcoverApp:getStatusSubMenuItems()
             if result then
               self.state.book_status = result
               menu_instance:updateItems()
+            else
+              showError("Rating could not be saved")
             end
           end
         }

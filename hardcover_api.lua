@@ -141,12 +141,17 @@ local function sortBooks(list, author)
 end
 
 function HardcoverApi:me()
-  return self:query([[{
+  local result = self:query([[{
     me {
       id
       account_privacy_setting_id
     }
-  }]]).me[1]
+  }]])
+
+  if result and result.me then
+    return result.me[1]
+  end
+  return {}
 end
 
 function HardcoverApi:query(query, parameters)
@@ -247,7 +252,9 @@ function HardcoverApi:findEditions(book_id, user_id)
     }]] .. edition_fragment
 
   local editions = self:query(edition_search, { id = book_id, userId = user_id })
-  if not editions or not editions.editions then return end
+  if not editions or not editions.editions then
+    return {}
+  end
   local edition_list = editions.editions
 
   if #edition_list > 1 then
@@ -411,7 +418,7 @@ function HardcoverApi:findBooks(title, author, userId)
 
   local books = self:query(queryString, variables)
   if not books then
-    return
+    return {}
   end
 
   sortBooks(books.books, author)
