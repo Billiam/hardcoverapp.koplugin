@@ -1,6 +1,6 @@
 # Hardcover.app for KOReader
 
-A KOReader plugin to update your Hardcover.app book status
+A KOReader plugin to update your [Hardcover.app](https://hardcover.app) book status
 
 ## Installation
 
