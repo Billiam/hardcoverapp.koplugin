@@ -20,8 +20,12 @@ local DocSettings = require("docsettings")
 local InfoMessage = require("ui/widget/infomessage")
 local Size = require("ui/size")
 local JournalDialog = require("journal_dialog")
+local https = require("ssl.https")
+local ltn12 = require("ltn12")
+local json = require("json")
 
-local VERSION = {0,0,1}
+local VERSION = {0, 0, 1}
+local RELEASE_API = "https://api.github.com/repos/billiam/hardcoverapp.koplugin/releases?per_page=1"
 
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",
@@ -709,6 +713,32 @@ function HardcoverApp:cachePageMap()
   self.state.page_map = lookup
 end
 
+function HardcoverApp:newRelease()
+  local responseBody = {}
+  local res, code, responseHeaders = https.request {
+    url = RELEASE_API,
+    sink = ltn12.sink.table(responseBody),
+  }
+
+  if code == 200 or code == 304 then
+    local data = json.decode(table.concat(responseBody), json.decode.simple)
+    if data and #data > 0 then
+      local tag = data[1].tag_name
+      local index = 1
+      for str in string.gmatch(tag, "([^.]+)") do
+        local part = tonumber(str)
+
+        if part < VERSION[index] then
+          return nil
+        elseif part > VERSION[index] then
+          return tag
+        end
+        index = index + 1
+      end
+    end
+  end
+end
+
 function HardcoverApp:getSubMenuItems()
   return {
     {
@@ -793,6 +823,32 @@ function HardcoverApp:getSubMenuItems()
       text = _("Settings"),
       sub_item_table_func = function() return self:getSettingsSubMenuItems() end,
     },
+    {
+      text = _("About"),
+      callback = function()
+        local new_release = self:newRelease()
+        local version = table.concat(VERSION, ".")
+        local new_release_str = ""
+        if new_release then
+          new_release_str = " (latest v" .. new_release .. ")"
+        end
+        local settings_file = DataStorage:getSettingsDir() .. "/" .. "hardcoversync_settings.lua"
+
+        UIManager:show(InfoMessage:new{
+          text = [[
+Hardcoverapp.koplugin
+v]] .. version .. new_release_str .. [[
+
+
+Updates book progress and status on hardcover.app
+
+github.com/billiam/hardcoverapp.koplugin
+
+Settings: ]] .. settings_file
+        })
+      end,
+      keep_menu_open = true
+    }
   }
 end
 
