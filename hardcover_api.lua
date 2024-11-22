@@ -164,8 +164,8 @@ function HardcoverApi:query(query, parameters)
     sink = ltn12.sink.table(responseBody),
   }
   --logger.warn("Request time", os:clock() - t)
-  logger.warn("request", json.encode(requestBody))
-  logger.warn("response", responseBody)
+  --logger.warn("request", json.encode(requestBody))
+  --logger.warn("response", responseBody)
   if code == 200 then
     local data = json.decode(table.concat(responseBody), json.decode.simple)
     if data.data then
