@@ -18,6 +18,10 @@ local math = require("math")
 local throttle = require("throttle")
 local DocSettings = require("docsettings")
 local InfoMessage = require("ui/widget/infomessage")
+local Size = require("ui/size")
+local JournalDialog = require("journal_dialog")
+
+local VERSION = {0,0,1}
 
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",
@@ -67,6 +71,10 @@ local SETTING_LINK_BY_HARDCOVER = "link_by_hardcover"
 local SETTING_LINK_BY_TITLE = "link_by_title"
 local SETTING_ALWAYS_SYNC = "always_sync"
 local SETTING_USER_ID = "user_id"
+
+local HIGHLIGHT_MENU_NAME = "13_0_make_hardcover_highlight_item"
+
+local CATEGORY_TAG = "Tag"
 
 local function parseIdentifiers(identifiers)
   result = {}
@@ -118,6 +126,7 @@ function HardcoverApp:init()
     search_results = {},
     book_status = {}
   }
+
   self.settings = LuaSettings:open(("%s/%s"):format(DataStorage:getSettingsDir(), "hardcoversync_settings.lua"))
 
   self:onDispatcherRegisterActions()
@@ -125,7 +134,7 @@ function HardcoverApp:init()
   self.ui.menu:registerToMainMenu(self)
 end
 
-function HardcoverApp:_handlePageUpdate(filename, page, document_pages, mapped_page, immediate)
+function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
   local book_settings = self:_readBookSettings(filename)
   if not book_settings.book_id or not book_settings.sync then
     return
@@ -133,10 +142,6 @@ function HardcoverApp:_handlePageUpdate(filename, page, document_pages, mapped_p
 
   if self.state.book_status.status_id ~= STATUS_READING then
     return
-  end
-
-  if not mapped_page then
-    mapped_page = math.floor(( page / document_pages) * book_settings.pages)
   end
 
   local reads = self.state.book_status.user_book_reads
@@ -158,13 +163,29 @@ end
 
 HardcoverApp._throttledHandlePageUpdate, HardcoverApp._cancelPageUpdate = throttle(30, HardcoverApp._handlePageUpdate)
 
+function HardcoverApp:getMappedPage(raw_page, document_pages, remote_pages)
+  local mapped_page = self.state.page_map and self.state.page_map[raw_page]
+
+  if mapped_page then
+    return mapped_page
+  end
+
+  if remote_pages and document_pages then
+    return math.floor(( raw_page / document_pages) * remote_pages + 0.5)
+  end
+
+  return raw_page
+end
+
 function HardcoverApp:pageUpdateEvent(page)
   self.state.page = page
-  local document_pages = self.ui.document:getPageCount() -- non-translated
-  local mapped_page = self.state.page_map and self.state.page_map[page]
-  if self.state.book_status.id then
-    self:_throttledHandlePageUpdate(self.view.document.file, page, document_pages, mapped_page)
+  if not self.state.book_status.id then
+    return
   end
+
+  local mapped_page = self:getMappedPage(page, self.ui.document:getPageCount(), self:pages())
+
+  self:_throttledHandlePageUpdate(self.view.document.file, mapped_page)
 end
 
 HardcoverApp.onPageUpdate = HardcoverApp.pageUpdateEvent
@@ -179,13 +200,14 @@ end
 -- TODO: event for loading reader?
 function HardcoverApp:onReaderReady()
   self:cachePageMap()
-
+  self:registerHighlight()
   local book_settings = self:_readBookSettings(self.view.document.file)
-  if book_settings.book_id and book_settings.sync then
-    self:cacheUserBook()
-  end
 
-  if not book_settings.book_id then
+  if book_settings and book_settings.id then
+    if book_settings and book_settings.book_id and book_settings.sync then
+      self:cacheUserBook()
+    end
+  else
     self:tryAutolink()
   end
 end
@@ -277,6 +299,131 @@ function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
       timeout = 2
     })
   end
+end
+
+
+function HardcoverApp:registerHighlight()
+  self.ui.highlight:removeFromHighlightDialog(HIGHLIGHT_MENU_NAME)
+
+  if self:bookLinked() then
+    self.ui.highlight:addToHighlightDialog(HIGHLIGHT_MENU_NAME, function(this)
+      return {
+        text_func = function()
+          return _("Hardcover quote")
+        end,
+        callback = function()
+          local selected_text = this.selected_text
+          local raw_page = selected_text.pos0.page
+          if not raw_page then
+            raw_page = self.view.document:getPageFromXPointer(selected_text.pos0)
+          end
+          -- open journal dialog
+          self:journalEntryForm(selected_text.text, raw_page, self.ui.document:getPageCount(), self:pages(), nil, "quote")
+
+          this:onClose()
+        end,
+      }
+    end)
+  end
+end
+
+local function map_journal_data(data)
+  local result = {
+    book_id = data.book_id,
+    event = data.event_type,
+    entry = data.text,
+    edition_id = data.edition_id,
+    privacy_setting_id = data.privacy_setting_id,
+  }
+  local tags
+  if #data.tags > 0 then
+    tags = tags or {}
+    for _, tag in ipairs(data.tags) do
+      table.insert(tags, { category = CATEGORY_TAG, tag = tag, spoiler = false })
+    end
+  end
+  if #data.hidden_tags > 0 then
+    tags = tags or {}
+    for _, tag in ipairs(data.hidden_tags) do
+      table.insert(tags, { category = CATEGORY_TAG, tag = tag, spoiler = true })
+    end
+  end
+
+  if #tags > 0 then
+    result.tags = tags
+  end
+
+  if data.page then
+    result.metadata = {
+      position = {
+        type = "pages",
+        value = data.page,
+        possible = data.pages
+      }
+    }
+  end
+
+  return result
+end
+
+function HardcoverApp:journalEntryForm(text, page, document_pages, remote_pages, mapped_page, event_type)
+  local settings = self:_readBookSettings(self.view.document.file) or {}
+  local edition_id = settings.edition_id
+  local edition_format = settings.edition_format
+
+  if not edition_id then
+    local edition = Api:defaultEdition(settings.book_id, self:userId())
+    if edition then
+      edition_id = edition.id
+      edition_format = edition.format
+      remote_pages = edition.pages
+    end
+  end
+
+  mapped_page = mapped_page or self:getMappedPage(page, document_pages, remote_pages)
+
+  local dialog
+  dialog = JournalDialog:new{
+    input = text,
+    event_type = event_type or "note",
+    book_id = settings.book_id,
+    edition_id = settings.edition_id,
+    edition_format = settings.edition_format,
+    page = mapped_page,
+    pages = remote_pages,
+    save_dialog_callback = function(book_data)
+      local api_data = map_journal_data(book_data)
+      local result = Api:createJournalEntry(api_data)
+      if result then
+        UIManager:close(dialog)
+        UIManager:nextTick(function()
+          UIManager:show(InfoMessage:new {
+            text = _(event_type .. " saved"),
+            timeout = 2
+          })
+        end)
+      else
+        -- show error
+      end
+    end,
+    select_edition_callback = function()
+      -- TODO: could be moved into child dialog but needs access to build dialog, which needs dialog again
+      dialog:onCloseKeyboard()
+
+      local editions = Api:findEditions(self:getLinkedBookId(), self:getUserId())
+      self:buildDialog("Select edition", editions, { edition_id = dialog.edition_id }, function(edition)
+        if edition then
+          dialog:setEdition(edition.edition_id, edition.edition_format, edition.pages)
+        end
+      end)
+      UIManager:show(self.search_dialog)
+    end
+  }
+  -- scroll to the bottom instead of overscroll displayed
+  dialog._input_widget:scrollToBottom()
+
+  UIManager:show(dialog)
+  dialog:onShowKeyboard()
 end
 
 function HardcoverApp:_readBookSettings(filename)
@@ -389,6 +536,8 @@ function HardcoverApp:linkBook(book)
   self:_updateBookSetting(filename, new_settings)
 
   self:cacheUserBook()
+  self:registerHighlight()
+
   if book.book_id and self.state.book_status.id then
     if new_settings.edition_id and new_settings.edition_id ~= self.state.book_status.edition_id then
       -- update edition
@@ -447,6 +596,7 @@ end
 
 function HardcoverApp:clearLink()
   self:_updateBookSetting(self.view.document.file, { _delete = { 'book_id', 'edition_id', 'edition_format', 'pages', 'title' }})
+  self:registerHighlight()
 end
 
 function HardcoverApp:getUserId()
@@ -498,23 +648,29 @@ function HardcoverApp:findBookOptions(force_search)
   return Api:findBooks(props.title, props.authors, user_id)
 end
 
-function HardcoverApp:buildDialog(title, items, active_item)
+-- TODO might be easier not to reuse the dialog
+function HardcoverApp:buildDialog(title, items, active_item, book_callback)
+  book_callback = book_callback or self.linkBook
+
+  local callback = function(book)
+    self.search_dialog:onClose()
+
+    book_callback(book)
+    if self.state.menu_instance then
+      self.state.menu_instance:updateItems()
+      self.state.menu_instance = nil
+    end
+  end
+
   if self.search_dialog then
     self.search_dialog:setItems(title, items, active_item)
+    self.search_dialog.select_book_cb = callback
   else
     self.search_dialog = SearchDialog:new {
       title = title,
       items = items,
       active_item = active_item,
-      select_book_cb = function(book)
-        self.search_dialog:onClose()
-
-        self:linkBook(book)
-        if self.state.menu_instance then
-          self.state.menu_instance:updateItems()
-          self.state.menu_instance = nil
-        end
-      end
+      select_book_cb = callback
     }
   end
 end
@@ -799,6 +955,21 @@ function HardcoverApp:getStatusSubMenuItems()
           end
         }
         UIManager:show(spinner)
+      end,
+      keep_menu_open = true
+    },
+    {
+      text = _("Add a note"),
+      enabled_func = function()
+        return self.state.book_status.id ~= nil
+      end,
+      callback = function()
+        local reads = self.state.book_status.user_book_reads
+        local current_read = reads and reads[#reads]
+        local current_page = current_read and current_read.progress_pages or 0
+
+        -- allow premapped page
+        self:journalEntryForm("", current_page, self.ui.document:getPageCount(), self:pages(), current_page,"note")
       end,
       keep_menu_open = true
     },
