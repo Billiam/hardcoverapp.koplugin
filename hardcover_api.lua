@@ -140,6 +140,15 @@ local function sortBooks(list, author)
   end)
 end
 
+function HardcoverApi:me()
+  return self:query([[{
+    me {
+      id
+      account_privacy_setting_id
+    }
+  }]]).me[1]
+end
+
 function HardcoverApi:query(query, parameters)
   local requestBody = {
     query = query,
@@ -155,8 +164,8 @@ function HardcoverApi:query(query, parameters)
     sink = ltn12.sink.table(responseBody),
   }
   --logger.warn("Request time", os:clock() - t)
-  --logger.warn("request", json.encode(requestBody))
-  --logger.warn("response", responseBody)
+  logger.warn("request", json.encode(requestBody))
+  logger.warn("response", responseBody)
   if code == 200 then
     local data = json.decode(table.concat(responseBody), json.decode.simple)
     if data.data then
@@ -410,6 +419,92 @@ function HardcoverApi:findBooks(title, author, userId)
   return books.books
 end
 
+
+function HardcoverApi:findUserBook(book_id, user_id)
+  -- this may not be adequate, as (it's possible) there could be more than one read in progress? Maybe?
+  local read_query = [[
+    query ($id: Int!, $userId: Int!) {
+      user_books(where: { book_id: { _eq: $id }, user_id: { _eq: $userId }}) {
+        ...UserBookParts
+      }
+    }
+  ]] .. user_book_fragment
+
+  local results = self:query(read_query, { id = book_id, userId = user_id })
+  if not results or not results.user_books then
+    return {}
+  end
+
+  return results.user_books[1]
+end
+
+function HardcoverApi:defaultEdition(book_id, user_id)
+  local query = [[
+    query ($bookId: Int!, $userId: Int!) {
+      user_books(where: {book_id: {_eq: $bookId}, user_id: {_eq: $userId}}) {
+        edition {
+          ...UserBookParts
+        }
+        user_book_reads(limit: 1, order_by: {id: asc}) {
+          edition {
+            ...UserBookParts
+          }
+        }
+      }
+      editions(
+        limit: 1
+        where: {book_id: {_eq: $bookId}}
+        order_by: {users_count: desc_nulls_last}
+      ) {
+        ...UserBookParts
+      }
+      books_by_pk(id: $bookId) {
+        default_physical_edition {
+          ...UserBookParts
+        }
+        default_ebook_edition {
+          ...UserBookParts
+        }
+      }
+    }
+    fragment UserBookParts on editions {
+      id
+      edition_format
+      pages
+    }
+  ]]
+
+  local results = self:query(query, { bookId = book_id, userId = user_id })
+  if results then
+    -- prefer:
+    -- 1. most recent matching user read
+    -- 2. a user book
+    -- 3. default ebook edition
+    -- 4. default physical edition
+    -- 5. most read book edition
+    for _,user_book in ipairs(results.user_books) do
+      if #user_book.user_book_reads > 0 then
+        if user_book.user_book_reads[1].edition then
+          return results.user_books.user_book_reads[1].edition
+        end
+      end
+      return user_book.edition
+    end
+
+    if results.books_by_pk.default_ebook_edition then
+      return results.books_by_pk.default_ebook_edition
+    end
+
+    if results.books_by_pk.default_physical_edition then
+      return results.books_by_pk.default_physical_edition
+    end
+
+    if #results.editions > 0 then
+      return results.editions[1]
+    end
+  end
+end
+
 function HardcoverApi:createRead(user_book_id, edition_id, page, started_at)
   local query = [[
     mutation InsertUserBookRead($id: Int!, $pages: Int, $editionId: Int, $startedAt: date) {
@@ -554,39 +649,22 @@ function HardcoverApi:removeRead(user_book_id)
   end
 end
 
-function HardcoverApi:setRating(edition)
-end
-
-function HardcoverApi:findUserBook(book_id, user_id)
-  -- this may not be adequate, as (it's possible) there could be more than one read in progress? Maybe?
-  local read_query = [[
-    query ($id: Int!, $userId: Int!) {
-      user_books(where: { book_id: { _eq: $id }, user_id: { _eq: $userId }}) {
-        ...UserBookParts
+function HardcoverApi:createJournalEntry(object)
+  local query = [[
+    mutation InsertReadingJournalEntry($object: ReadingJournalCreateType!) {
+      insert_reading_journal(object: $object) {
+        reading_journal {
+          id
+        }
       }
     }
-  ]] .. user_book_fragment
+  ]]
 
-  local results = self:query(read_query, { id = book_id, userId = user_id })
-  if not results or not results.user_books then
-    return {}
+  local result = self:query(query, { object = object })
+  if result then
+    return result.insert_reading_journal.reading_journal
   end
-
-  return results.user_books[1]
 end
 
--- most recent?
-function HardcoverApi:findUserBookRead(edition_id, user_id)
-end
-
-
-function HardcoverApi:me()
-  return self:query([[{
-    me {
-      id
-      account_privacy_setting_id
-    }
-  }]]).me[1]
-end
 
 return HardcoverApi
