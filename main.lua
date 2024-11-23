@@ -416,7 +416,7 @@ function HardcoverApp:journalEntryForm(text, page, document_pages, remote_pages,
   local edition_format = settings.edition_format
 
   if not edition_id then
-    local edition = Api:defaultEdition(settings.book_id, self:userId())
+    local edition = Api:defaultEdition(settings.book_id, self:getUserId())
     if edition then
       edition_id = edition.id
       edition_format = edition.format
