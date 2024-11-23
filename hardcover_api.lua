@@ -3,6 +3,7 @@ local logger = require("logger")
 local https = require("ssl.https")
 local ltn12 = require("ltn12")
 local json = require("json")
+local _t = require("table_util")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
 local headers = {
@@ -490,10 +491,9 @@ function HardcoverApi:defaultEdition(book_id, user_id)
     -- 4. default physical edition
     -- 5. most read book edition
     for _,user_book in ipairs(results.user_books) do
-      if #user_book.user_book_reads > 0 then
-        if user_book.user_book_reads[1].edition then
-          return results.user_books.user_book_reads[1].edition
-        end
+      local read_edition = _t.dig("user_book", "user_book_reads", 1, "edition")
+      if read_edition then return
+        read_edition
       end
       return user_book.edition
     end
