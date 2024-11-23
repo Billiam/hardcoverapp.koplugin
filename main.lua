@@ -574,7 +574,7 @@ function HardcoverApp:linkBook(book)
     _delete = delete
   }
 
-  if self.state.book_status.id == new_setting.book_id and self.state.book_status.edition_id == new_setting.edition_id then
+  if self.state.book_status.id == new_settings.book_id and self.state.book_status.edition_id == new_settings.edition_id then
     return
   end
 
