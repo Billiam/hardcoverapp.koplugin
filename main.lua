@@ -215,8 +215,9 @@ function HardcoverApp:onReaderReady()
   self:registerHighlight()
   local book_settings = self:_readBookSettings(self.view.document.file)
 
-  if book_settings and book_settings.id then
-    if book_settings and book_settings.book_id and book_settings.sync then
+  if book_settings and book_settings.book_id then
+    if book_settings.sync then
+      -- may not need to do this until a page event
       self:cacheUserBook()
     end
   else
