@@ -84,12 +84,12 @@ function JournalDialog:init()
 
   local privacy_label = TextWidget:new {
     text = "Privacy: ",
-    face = Font:getFace("cfont", 20)
+    face = Font:getFace("cfont", 16)
   }
 
   local privacy_switch
   privacy_switch = ToggleSwitch:new{
-    width = self.width - 30 - privacy_label:getWidth(),
+    width = self.width - 40 - privacy_label:getWidth(),
     toggle = { _("Public"), _("Follows"), _("Private") },
     values = { 1, 2, 3 },
     alternate = false,
@@ -102,6 +102,9 @@ function JournalDialog:init()
 
   local privacy_row = HorizontalGroup:new{
     privacy_label,
+    HorizontalSpan:new{
+      width = 10
+    },
     privacy_switch
   }
 
