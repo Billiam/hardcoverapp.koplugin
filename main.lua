@@ -5,24 +5,24 @@
 local Api = require("hardcover_api")
 local DataStorage = require("datastorage")
 local Dispatcher = require("dispatcher")  -- luacheck:ignore
+local DocSettings = require("docsettings")
+local InfoMessage = require("ui/widget/infomessage")
+local JournalDialog = require("journal_dialog")
 local LuaSettings = require("frontend/luasettings")
+local Notification = require("ui/widget/notification")
 local SearchDialog = require("search_dialog")
 local SpinWidget = require("ui/widget/spinwidget")
 local T = require("ffi/util").template
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
-local logger = require("logger")
-local os = require("os")
-local math = require("math")
-local throttle = require("throttle")
-local DocSettings = require("docsettings")
-local InfoMessage = require("ui/widget/infomessage")
-local Size = require("ui/size")
-local JournalDialog = require("journal_dialog")
 local https = require("ssl.https")
-local ltn12 = require("ltn12")
 local json = require("json")
+local logger = require("logger")
+local ltn12 = require("ltn12")
+local math = require("math")
+local os = require("os")
+local throttle = require("throttle")
 
 local VERSION = {0, 0, 1}
 local RELEASE_API = "https://api.github.com/repos/billiam/hardcoverapp.koplugin/releases?per_page=1"
@@ -75,6 +75,7 @@ local SETTING_LINK_BY_HARDCOVER = "link_by_hardcover"
 local SETTING_LINK_BY_TITLE = "link_by_title"
 local SETTING_ALWAYS_SYNC = "always_sync"
 local SETTING_USER_ID = "user_id"
+local SETTING_TRACK_FREQUENCY = "track_frequency"
 
 local HIGHLIGHT_MENU_NAME = "13_0_make_hardcover_highlight_item"
 
@@ -142,7 +143,7 @@ function HardcoverApp:init()
   self.settings = LuaSettings:open(("%s/%s"):format(DataStorage:getSettingsDir(), "hardcoversync_settings.lua"))
 
   self:onDispatcherRegisterActions()
-
+  self:initializePageUpdate()
   self.ui.menu:registerToMainMenu(self)
 end
 
@@ -173,7 +174,17 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
   end
 end
 
-HardcoverApp._throttledHandlePageUpdate, HardcoverApp._cancelPageUpdate = throttle(30, HardcoverApp._handlePageUpdate)
+function HardcoverApp:initializePageUpdate()
+  local track_frequency = math.max(math.min(self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 1, 120), 1)
+
+  HardcoverApp._throttledHandlePageUpdate, HardcoverApp._cancelPageUpdate = throttle(track_frequency * 60, HardcoverApp._handlePageUpdate)
+end
+
+function HardcoverApp:changeTrackFrequency(time)
+  self:_updateSetting(SETTING_TRACK_FREQUENCY, time)
+  self:_cancelPageUpdate()
+  self:initializePageUpdate()
+end
 
 function HardcoverApp:getMappedPage(raw_page, document_pages, remote_pages)
   local mapped_page = self.state.page_map and self.state.page_map[raw_page]
@@ -191,7 +202,7 @@ end
 
 function HardcoverApp:pageUpdateEvent(page)
   self.state.page = page
-  if not self.state.book_status.id then
+  if not self.state.book_status.id or self:syncEnabled() then
     return
   end
 
@@ -202,7 +213,9 @@ end
 
 HardcoverApp.onPageUpdate = HardcoverApp.pageUpdateEvent
 function HardcoverApp:onPosUpdate(_, page)
-  self:pageUpdateEvent(page)
+  if self.reader then
+    self:pageUpdateEvent(page)
+  end
 end
 
 function HardcoverApp:onUpdatePos()
@@ -211,10 +224,10 @@ end
 
 -- TODO: event for loading reader?
 function HardcoverApp:onReaderReady()
+  self.reader = true
   self:cachePageMap()
   self:registerHighlight()
   local book_settings = self:_readBookSettings(self.view.document.file)
-
   if book_settings and book_settings.book_id then
     if book_settings.sync then
       -- may not need to do this until a page event
@@ -226,12 +239,30 @@ function HardcoverApp:onReaderReady()
 end
 
 function HardcoverApp:onDocumentClose()
+  self.reader = false
+
+  if not self.state.book_status.id and not self:syncEnabled() then
+    return
+  end
+
+  self:_cancelPageUpdate()
+  local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
+  self:_handlePageUpdate(self.view.document.file, mapped_page, true)
+
   self.state.book_status = {}
   self.state.page_map = nil
 end
 
 function HardcoverApp:onSuspend()
   self:_cancelPageUpdate()
+
+  if not self.state.book_status.id and not self:syncEnabled() then
+    return
+  end
+
+  local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
+
+  self:_handlePageUpdate(self.view.document.file, mapped_page, true)
 end
 
 function HardcoverApp:onEndOfBook()
@@ -543,6 +574,10 @@ function HardcoverApp:linkBook(book)
     _delete = delete
   }
 
+  if self.state.book_status.id == new_setting.book_id and self.state.book_status.edition_id == new_setting.edition_id then
+    return
+  end
+
   self:_updateBookSetting(filename, new_settings)
 
   self:cacheUserBook()
@@ -563,9 +598,8 @@ function HardcoverApp:autolinkBook(book)
   if book then
     local linked = self:linkBook(book)
     if linked then
-      UIManager:show(InfoMessage:new {
+      UIManager:show(Notification:new{
         text = _("Linked to: " .. book.title),
-        timeout = 3
       })
     end
   end
@@ -665,7 +699,7 @@ function HardcoverApp:buildDialog(title, items, active_item, book_callback)
   local callback = function(book)
     self.search_dialog:onClose()
 
-    book_callback(book)
+    book_callback(self, book)
     if self.state.menu_instance then
       self.state.menu_instance:updateItems()
       self.state.menu_instance = nil
@@ -802,7 +836,7 @@ function HardcoverApp:getSubMenuItems()
       separator = true
     },
     {
-      text = _("Track progress"),
+      text = _("Automatically track progress"),
       checked_func = function()
         return self:syncEnabled()
       end,
@@ -1170,6 +1204,32 @@ function HardcoverApp:getSettingsSubMenuItems()
         end
       end,
       separator = true
+    },
+    {
+      text_func = function()
+        local track_frequency = self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 1
+        return "Auto progress frequency: " .. track_frequency .. "min"
+      end,
+      callback = function(menu_instance)
+        local track_frequency = self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 1
+
+        local spinner = SpinWidget:new{
+          value = track_frequency,
+          value_min = 1,
+          value_max = 120,
+          value_step = 1,
+          value_hold_step = 6,
+          ok_text = _("Save"),
+          title_text = _("Set track progress"),
+          callback = function(spin)
+            self:changeTrackFrequency(spin.value)
+            menu_instance:updateItems()
+          end
+        }
+
+        UIManager:show(spinner)
+      end,
+      keep_menu_open = true
     },
     {
       text = "Always track progress by default",
