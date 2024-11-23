@@ -10,6 +10,7 @@ local Size = require("ui/size")
 local SpinWidget = require("ui/widget/spinwidget")
 local TextWidget = require("ui/widget/textwidget")
 local ToggleSwitch = require("ui/widget/toggleswitch")
+local TextBoxWidget = require("ui/widget/textboxwidget")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
 local logger = require("logger")
@@ -19,7 +20,6 @@ local JOURNAL_QUOTE = "quote"
 
 local JournalDialog = InputDialog:extend {
   allow_newline = true,
-  text_height = 80,
   results = {},
   title = "Create journal entry",
   padding = 10,
@@ -49,6 +49,13 @@ end
 
 function JournalDialog:init()
   self:setModified()
+
+  local text_widget = TextBoxWidget:new{
+    text = "I\n\nj",
+    face = Font:getFace("smallinfofont"),
+    for_measurement_only = true,
+  }
+  self.text_height = text_widget:getTextHeight()
 
   self.save_callback = function()
     return self.save_dialog_callback({
