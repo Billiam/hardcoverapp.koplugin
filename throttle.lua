@@ -43,8 +43,6 @@ local throttle = function(seconds, action)
 
   local throttled_action_wrapper = function(...)
     args = table.pack(...)
-    local now = time:now()
-
     if is_scheduled then
       request_trailing = true
     else
