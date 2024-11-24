@@ -2,6 +2,7 @@
 local logger = require("logger")
 local getUrlContent = require("vendor/url_content")
 local UIManager = require("ui/uimanager")
+local Trapper = require("ui/trapper")
 
 local ImageLoader = {
   url_map = {}
@@ -41,12 +42,21 @@ function Batch:loadImages(urls)
   local stop_loading = false
 
   run_image = function()
+    Trapper:wrap(function()
+
     if stop_loading then return end
 
     local url = table.remove(url_queue,1)
-    local success, content = getUrlContent(url, 10, 30)
 
-    if success then
+    local completed, success, content = Trapper:dismissableRunInSubprocess(function()
+      return getUrlContent(url, 10, 30)
+    end)
+
+    --if not completed then
+    --  logger.warn("Aborted")
+    --end
+
+    if completed and success then
       self.callback(url, content)
     end
 
@@ -55,6 +65,8 @@ function Batch:loadImages(urls)
     end
 
     self.loading = false
+
+    end)
   end
 
   if #urls == 0 then
