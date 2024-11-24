@@ -210,7 +210,7 @@ function HardcoverApi:_query(query, parameters)
   socketutil:reset_timeout()
 
   local content = table.concat(sink) -- empty or content accumulated till now
-
+  --logger.warn(requestBody)
   if code == socketutil.TIMEOUT_CODE or
     code == socketutil.SSL_HANDSHAKE_CODE or
     code == socketutil.SINK_TIMEOUT_CODE
@@ -227,31 +227,38 @@ function HardcoverApi:_query(query, parameters)
 end
 
 function HardcoverApi:hydrateBooks(ids, user_id)
+  if #ids == 0 then
+    return {}
+  end
+
   -- hydrate ids
-  local bookQuery = [[{
+  local bookQuery = [[
     query ($ids: [Int!], $userId: Int!) {
-      books(where: { _id: { _in: $ids }}) {
+      books(where: { id: { _in: $ids }}) {
         ...BookParts
       }
     }
-  }]] .. book_fragment
+  ]] .. book_fragment
 
   local books = self:query(bookQuery, { ids = ids, userId = user_id })
+  if books then
+    local list = books.books
 
-  if books and #books > 1 then
-    local id_order = {}
+    if #list > 1 then
+      local id_order = {}
 
-    for i,v in ipairs(ids) do
-      id_order[i] = v
+      for i,v in ipairs(ids) do
+        id_order[v] = i
+      end
+
+      -- sort books by original ID order
+      table.sort(list, function (a, b)
+        return id_order[a.id] < id_order[b.id]
+      end)
     end
 
-    -- sort books by original ID order
-    table.sort(books, function (a, b)
-      return id_order[a.id] < id_order[b.id]
-    end)
+    return list
   end
-
-  return books
 end
 
 function HardcoverApi:hydrateBookFromEdition(edition_id, user_id)
@@ -348,13 +355,13 @@ end
     -- update book progress requires an id. The previous status id?
 function HardcoverApi:search(title, author, userId, page)
   page = page or 1
-  local query = [[{
+  local query = [[
     query ($query: String!, $page: Int!) {
       search(query: $query, per_page: 25, page: $page, query_type: "Book") {
-        ids
+        results
       }
     }]]
-  local search = title .. " " .. author
+  local search = title .. " " .. (author or "")
   local results = self:query(query, { query = search, page = page})
   if not results then
     return {}
@@ -362,8 +369,8 @@ function HardcoverApi:search(title, author, userId, page)
 
   local ids = {}
 
-  for _, v in ipairs(results) do
-    table.insert(ids, v.id)
+  for _, v in ipairs(results.search.results.hits) do
+    table.insert(ids, tonumber(v.document.id))
   end
 
   return self:hydrateBooks(ids, userId)
@@ -431,40 +438,12 @@ end
 
 
 function HardcoverApi:findBooks(title, author, userId)
-  local variables = {
-    userId = userId
-  }
-
   if not title or string.match(title, "^%s*$") then
     return {}
   end
 
-  --handling author vs title searching
-  -- prefer matching author
-  -- prefer books on user lists
-
-  local queryString = [[
-    query ($title: String!, $userId: Int!) {
-      books(
-        limit: 50
-        where: { title: { _ilike: $title }}
-        order_by: { users_read_count: desc_nulls_last }
-      ) {
-        ...BookParts
-      }
-    }
-  ]] .. book_fragment
-
-  variables.title = "%" .. escapeLike(title:gsub(":.+", ""):gsub("^%s+", ""):gsub("%s+$", "")) .. "%"
-
-  local books = self:query(queryString, variables)
-  if not books then
-    return {}
-  end
-
-  sortBooks(books.books, author)
-
-  return books.books
+  title = title:gsub(":.+", ""):gsub("^%s+", ""):gsub("%s+$", "")
+  return self:search(title, author, userId)
 end
 
 

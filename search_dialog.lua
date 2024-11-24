@@ -3,11 +3,11 @@ local Device = require("device")
 local Geom = require("ui/geometry")
 local GestureRange = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
-local RenderImage = require("ui/renderimage")
+local InputDialog = require("ui/widget/inputdialog")
 local SearchMenu = require("searchmenu")
 local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
-local getUrlContent = require("vendor/url_content")
+local _ = require("gettext")
 local logger = require("logger")
 
 local Screen = Device.screen
@@ -18,19 +18,10 @@ local HardcoverSearchDialog = InputContainer:extend {
   items = {},
   active_item = {},
   select_cb = nil,
-  title = nil
+  title = nil,
+  search_callback = nil,
+  search_value = nil
 }
-
-local function loadImage(url)
-  local success, content
-  -- Smaller timeout than when we have a trap_widget because we are
-  -- blocking without one (but 20s may be needed to fetch the main HTML
-  -- page of big articles when making an EPUB).
-  local timeout, maxtime = 10, 20
-  success, content = getUrlContent(url, timeout, maxtime)
-
-  return success, content
-end
 
 function HardcoverSearchDialog:createListItem(book, active_item)
   local info = ""
@@ -116,11 +107,20 @@ function HardcoverSearchDialog:init()
   self.width = math.min(self.width, Screen:scaleBySize(600))
   self.height = Screen:getHeight() - Screen:scaleBySize(50)
 
+  local left_icon, left_icon_callback
+  if self.search_callback then
+    left_icon = "appbar.search"
+    left_icon_callback = function() self:search() end
+  end
+
   self.menu = SearchMenu:new {
     title = self.title or "Select book",
+    fullscreen = true,
     item_table = self:parseItems(self.items, self.active_item),
     width = self.width,
     height = self.height,
+    title_bar_left_icon = left_icon,
+    onLeftButtonTap = left_icon_callback,
     onMenuSelect = function(menu, book)
       if self.select_book_cb then
         self.select_book_cb(book)
@@ -141,6 +141,39 @@ function HardcoverSearchDialog:init()
   self.menu.show_parent = self
 
   self[1] = self.container
+end
+
+function HardcoverSearchDialog:search()
+  logger.warn("Search: ", self)
+  local search_dialog
+  search_dialog = InputDialog:new{
+    title = "New search",
+    input = self.search_value,
+    save_button_text = "Search",
+    buttons = {{
+      {
+        text = _("Cancel"),
+        callback = function()
+          UIManager:close(search_dialog)
+        end,
+      },
+      {
+        text = _("Search"),
+        -- button with is_enter_default set to true will be
+        -- triggered after user press the enter key from keyboard
+        is_enter_default = true,
+        callback = function()
+          local text = search_dialog:getInputText()
+          local result = self.search_callback(text)
+          if result then
+            UIManager:close(search_dialog)
+          end
+        end,
+      }
+    }}
+  }
+
+  UIManager:show(search_dialog)
 end
 
 function HardcoverSearchDialog:setTitle(title)
@@ -168,6 +201,10 @@ function HardcoverSearchDialog:parseItems(items, active_item)
 end
 
 function HardcoverSearchDialog:setItems(title, items, active_item)
+  if self.menu.halt_image_loading then
+    self.menu.halt_image_loading()
+  end
+
   -- hack: Allow reusing menu (and closing more than once)
   self.menu._covermenu_onclose_done = false
   local new_item_table = self:parseItems(items, active_item)

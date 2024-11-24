@@ -21,6 +21,7 @@ local ltn12 = require("ltn12")
 local math = require("math")
 local os = require("os")
 local throttle = require("throttle")
+local util = require("util")
 
 local VERSION = {0, 0, 1}
 local RELEASE_API = "https://api.github.com/repos/billiam/hardcoverapp.koplugin/releases?per_page=1"
@@ -457,11 +458,16 @@ function HardcoverApp:journalEntryForm(text, page, document_pages, remote_pages,
       dialog:onCloseKeyboard()
 
       local editions = Api:findEditions(self:getLinkedBookId(), self:getUserId())
-      self:buildDialog("Select edition", editions, { edition_id = dialog.edition_id }, function(edition)
-        if edition then
-          dialog:setEdition(edition.edition_id, edition.edition_format, edition.pages)
+      self:buildDialog(
+        "Select edition",
+        editions,
+        { edition_id = dialog.edition_id },
+        function(edition)
+          if edition then
+            dialog:setEdition(edition.edition_id, edition.edition_format, edition.pages)
+          end
         end
-      end)
+      )
       UIManager:show(self.search_dialog)
     end
   }
@@ -675,10 +681,6 @@ function HardcoverApp:addToMainMenu(menu_items)
   }
 end
 
-function HardcoverApp:bookSearchList()
-
-end
-
 function HardcoverApp:findBookOptions(force_search)
   local props = self.view.document:getProps()
 
@@ -689,16 +691,23 @@ function HardcoverApp:findBookOptions(force_search)
   if not force_search then
     local book_lookup = Api:findBookByIdentifiers(identifiers, user_id)
     if book_lookup then
-      return { book_lookup }
+      return nil, { book_lookup }
     end
   end
 
-  -- TODO: When search api is ready, parse title from filename if no title available
-  return Api:findBooks(props.title, props.authors, user_id)
+  local title = props.title
+  if not title or title == "" then
+    local _dir, path = util.splitFilePathName(self.view.document.file)
+    local filename, _suffix = util.splitFileNameSuffix(path)
+
+    title = filename:gsub("_", " ")
+  end
+
+  return title, Api:findBooks(title, props.authors, user_id)
 end
 
 -- TODO might be easier not to reuse the dialog
-function HardcoverApp:buildDialog(title, items, active_item, book_callback)
+function HardcoverApp:buildDialog(title, items, active_item, book_callback, search_callback, search)
   book_callback = book_callback or self.linkBook
 
   local callback = function(book)
@@ -712,16 +721,17 @@ function HardcoverApp:buildDialog(title, items, active_item, book_callback)
   end
 
   if self.search_dialog then
-    self.search_dialog:setItems(title, items, active_item)
-    self.search_dialog.select_book_cb = callback
-  else
-    self.search_dialog = SearchDialog:new {
-      title = title,
-      items = items,
-      active_item = active_item,
-      select_book_cb = callback
-    }
+    self.search_dialog:free()
   end
+
+  self.search_dialog = SearchDialog:new {
+    title = title,
+    items = items,
+    active_item = active_item,
+    select_book_cb = callback,
+    search_callback = search_callback,
+    search_value = search
+  }
 end
 
 function HardcoverApp:cacheUserBook()
@@ -784,6 +794,13 @@ function HardcoverApp:newRelease()
   end
 end
 
+function HardcoverApp:updateSearchResults(search)
+  local books = Api:findBooks(search, nil, self:getUserId())
+  self.search_dialog:setItems(self.search_dialog.title, books, self.search_dialog.active_item)
+  self.search_dialog.search_value = search
+  return true, false
+end
+
 function HardcoverApp:getSubMenuItems()
   return {
     {
@@ -808,8 +825,17 @@ function HardcoverApp:getSubMenuItems()
       keep_menu_open = true,
       callback = function(menu_instance)
         local force_search = self:bookLinked()
-        local books = self:findBookOptions(force_search)
-        self:buildDialog("Select book", books, { book_id = self:getLinkedBookId() })
+        local search_value, books = self:findBookOptions(force_search)
+        logger.warn("Search is ", search_value)
+        self:buildDialog(
+          "Select book",
+          books,
+          { book_id = self:getLinkedBookId() },
+          nil,
+          function(search) return self:updateSearchResults(search) end,
+          search_value
+        )
+
         UIManager:show(self.search_dialog)
         self.state.menu_instance = menu_instance
       end,
