@@ -1,11 +1,8 @@
---[[--
-@module koplugin.HardcoverApp
---]]--
---TODO: trap request loading
 local Api = require("hardcover_api")
 local DataStorage = require("datastorage")
 local Dispatcher = require("dispatcher")  -- luacheck:ignore
 local DocSettings = require("docsettings")
+local Font = require("ui/font")
 local InfoMessage = require("ui/widget/infomessage")
 local JournalDialog = require("journal_dialog")
 local LuaSettings = require("frontend/luasettings")
@@ -13,6 +10,7 @@ local Notification = require("ui/widget/notification")
 local SearchDialog = require("search_dialog")
 local SpinWidget = require("ui/widget/spinwidget")
 local T = require("ffi/util").template
+local Trapper = require("ui/trapper")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
@@ -23,7 +21,6 @@ local ltn12 = require("ltn12")
 local math = require("math")
 local os = require("os")
 local throttle = require("throttle")
-local Trapper = require("ui/trapper")
 
 local VERSION = {0, 0, 1}
 local RELEASE_API = "https://api.github.com/repos/billiam/hardcoverapp.koplugin/releases?per_page=1"
@@ -884,16 +881,19 @@ function HardcoverApp:getSubMenuItems()
 
         UIManager:show(InfoMessage:new{
           text = [[
-Hardcoverapp.koplugin
+Hardcover plugin
 v]] .. version .. new_release_str .. [[
 
 
-Updates book progress and status on hardcover.app
+Updates book progress and status on Hardcover.app
 
+Project:
 github.com/billiam/hardcoverapp.koplugin
 
-Settings: ]] .. settings_file,
-          show_icon = false
+Settings:
+]] .. settings_file,
+          face = Font:getFace("cfont", 18),
+          show_icon = false,
         })
       end,
       keep_menu_open = true
