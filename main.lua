@@ -1275,7 +1275,7 @@ function HardcoverApp:getSettingsSubMenuItems()
     {
       text_func = function()
         local track_frequency = self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 1
-        return "Auto progress frequency: " .. track_frequency .. "min"
+        return "Track progress frequency: " .. track_frequency .. "min"
       end,
       callback = function(menu_instance)
         local track_frequency = self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 1
