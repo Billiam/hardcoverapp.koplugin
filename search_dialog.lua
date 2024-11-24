@@ -174,6 +174,7 @@ function HardcoverSearchDialog:search()
   }
 
   UIManager:show(search_dialog)
+  search_dialog:onShowKeyboard()
 end
 
 function HardcoverSearchDialog:setTitle(title)
