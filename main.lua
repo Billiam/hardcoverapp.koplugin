@@ -135,7 +135,8 @@ function HardcoverApp:init()
     page = nil,
     pos = nil,
     search_results = {},
-    book_status = {}
+    book_status = {},
+    reader_cache_tries = 0
   }
 
   self.settings = LuaSettings:open(("%s/%s"):format(DataStorage:getSettingsDir(), "hardcoversync_settings.lua"))
@@ -213,7 +214,7 @@ end
 
 HardcoverApp.onPageUpdate = HardcoverApp.pageUpdateEvent
 function HardcoverApp:onPosUpdate(_, page)
-  if self.reader then
+  if self.state.reader_ready then
     self:pageUpdateEvent(page)
   end
 end
@@ -226,31 +227,24 @@ end
 function HardcoverApp:onReaderReady()
   self:cachePageMap()
   self:registerHighlight()
-  local book_settings = self:_readBookSettings(self.view.document.file)
 
-  UIManager:scheduleIn(2, function()
-    if book_settings and book_settings.book_id then
-      if book_settings.sync then
-        -- non responsive during timeout
-        -- may not need to do this until a page event
-        self:cacheUserBook()
-      end
-    else
-      self:tryAutolink()
-    end
-
-    self.reader = true
-  end)
+  UIManager:scheduleIn(2, self.start_read_cache, self)
 end
 
 function HardcoverApp:onDocumentClose()
-  self.reader = false
+  self.state.reader_ready = false
+  self.state.reader_cache_tries = 0
+
+  UIManager:unschedule(self.fetch_current_book)
+
+  if self._cancelPageUpdate then
+    self:_cancelPageUpdate()
+  end
 
   if not self.state.book_status.id and not self:syncEnabled() then
     return
   end
 
-  self:_cancelPageUpdate()
   local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
   self:_handlePageUpdate(self.view.document.file, mapped_page, true)
 
@@ -350,6 +344,45 @@ function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
   end
 end
 
+function HardcoverApp:start_read_cache()
+  Trapper:wrap(function()
+    local request_successful = true
+    local book_settings = self:_readBookSettings(self.view.document.file)
+    if book_settings and book_settings.book_id and not self.state.book_status.id then
+      if self:syncEnabled() then
+        -- non responsive during timeout
+        -- may not need to do this until a page event
+        self:cacheUserBook()
+        if not self.state.book_status.id then
+          -- book cache failed
+          request_successful = false
+        end
+      end
+    else
+      self:tryAutolink()
+    end
+
+    if not request_successful then
+      if self.state.reader_cache_tries < 3 then
+        self.state.reader_cache_tries = self.state.reader_cache_tries + 1
+
+        UIManager:scheduleIn(self.state.reader_cache_tries ^ 3, self.start_read_cache, self)
+      else
+        local NetworkManager = require("ui/network/manager")
+        if NetworkManager:isConnected() then
+          UIManager:show(Notification:new{
+            text = _("Failed to fetch book information from Hardcover"),
+          })
+        end
+        self.state.reader_cache_tries = 0
+        self.state.reader_ready = true
+      end
+    else
+      self.state.reader_cache_tries = 0
+      self.state.reader_ready = true
+    end
+  end)
+end
 
 function HardcoverApp:registerHighlight()
   self.ui.highlight:removeFromHighlightDialog(HIGHLIGHT_MENU_NAME)
