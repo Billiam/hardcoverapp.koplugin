@@ -4,8 +4,12 @@ local https = require("ssl.https")
 local ltn12 = require("ltn12")
 local json = require("json")
 local _t = require("table_util")
+local Trapper = require("ui/trapper")
+local NetworkManager = require("ui/network/manager")
+local socketutil = require("socketutil")
 
-local api_url = "https://api.hardcover.app/v1/graphql"
+local api_url = "https://localhost:9999/v1/graphql"
+
 local headers = {
   ["Content-Type"] = "application/json",
   Authorization = "Bearer " .. config.token
@@ -156,34 +160,70 @@ function HardcoverApi:me()
 end
 
 function HardcoverApi:query(query, parameters)
+  if not NetworkManager:isConnected() then
+    return
+  end
+
+  local completed, success, content
+
+  completed, content = Trapper:dismissableRunInSubprocess(function()
+    return self:_query(query, parameters)
+  end, true, true)
+
+
+  if completed then
+    local code, response = string.match(content, "^([^:]*):(.*)")
+    if code == "200" then
+
+      local data = json.decode(response, json.decode.simple)
+      if data.data then
+        return data.data
+      elseif data.errors or data.error then
+        local err = data.errors or data.error
+        logger.err("Query error", err)
+      end
+    end
+  end
+end
+
+
+function HardcoverApi:_query(query, parameters)
   local requestBody = {
     query = query,
     variables = parameters
   }
-  local responseBody = {}
-  --local t = os:clock()
-  local res, code, responseHeaders = https.request {
+
+  local maxtime = 12
+  local timeout = 6
+
+  local sink = {}
+  socketutil:set_timeout(timeout, maxtime or 30)
+  local request = {
     url = api_url,
     method = "POST",
     headers = headers,
     source = ltn12.source.string(json.encode(requestBody)),
-    sink = ltn12.sink.table(responseBody),
+    sink = socketutil.table_sink(sink),
   }
-  --logger.warn("Request time", os:clock() - t)
-  --logger.warn("request", json.encode(requestBody))
-  --logger.warn("response", responseBody)
-  if code == 200 then
-    local data = json.decode(table.concat(responseBody), json.decode.simple)
-    if data.data then
-      return data.data
-    elseif data.errors or data.error then
-      local err = data.errors or data.error
-      logger.err("Query error", err)
-      logger.err("Query", requestBody)
-    end
-  else
-    logger.err("Error code", code, responseBody)
+
+  local _, code, headers, status = https.request(request)
+  socketutil:reset_timeout()
+
+  local content = table.concat(sink) -- empty or content accumulated till now
+
+  if code == socketutil.TIMEOUT_CODE or
+    code == socketutil.SSL_HANDSHAKE_CODE or
+    code == socketutil.SINK_TIMEOUT_CODE
+  then
+    logger.warn("request interrupted:", code)
+    return code .. ':'
   end
+
+  if code and code < 200 or code > 299 then
+    logger.dbg("Request error", code, responseBody)
+  end
+
+  return code .. ':' .. content
 end
 
 function HardcoverApi:hydrateBooks(ids, user_id)
