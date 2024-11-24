@@ -227,18 +227,23 @@ end
 
 -- TODO: event for loading reader?
 function HardcoverApp:onReaderReady()
-  self.reader = true
   self:cachePageMap()
   self:registerHighlight()
   local book_settings = self:_readBookSettings(self.view.document.file)
-  if book_settings and book_settings.book_id then
-    if book_settings.sync then
-      -- may not need to do this until a page event
-      self:cacheUserBook()
+
+  UIManager:scheduleIn(2, function()
+    if book_settings and book_settings.book_id then
+      if book_settings.sync then
+        -- non responsive during timeout
+        -- may not need to do this until a page event
+        self:cacheUserBook()
+      end
+    else
+      self:tryAutolink()
     end
-  else
-    self:tryAutolink()
-  end
+
+    self.reader = true
+  end)
 end
 
 function HardcoverApp:onDocumentClose()
