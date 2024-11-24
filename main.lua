@@ -23,6 +23,7 @@ local ltn12 = require("ltn12")
 local math = require("math")
 local os = require("os")
 local throttle = require("throttle")
+local Trapper = require("ui/trapper")
 
 local VERSION = {0, 0, 1}
 local RELEASE_API = "https://api.github.com/repos/billiam/hardcoverapp.koplugin/releases?per_page=1"
@@ -164,7 +165,9 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
   end
 
   local apiUpdate = function()
-    Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
+    Trapper:wrap(function()
+      Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
+    end)
   end
 
   if immediate then
@@ -202,7 +205,7 @@ end
 
 function HardcoverApp:pageUpdateEvent(page)
   self.state.page = page
-  if not self.state.book_status.id or self:syncEnabled() then
+  if not (self.state.book_status.id and self:syncEnabled()) then
     return
   end
 
