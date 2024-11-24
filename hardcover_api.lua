@@ -8,7 +8,7 @@ local Trapper = require("ui/trapper")
 local NetworkManager = require("ui/network/manager")
 local socketutil = require("socketutil")
 
-local api_url = "https://localhost:9999/v1/graphql"
+local api_url = "https://api.hardcover.app/v1/graphql"
 
 local headers = {
   ["Content-Type"] = "application/json",
