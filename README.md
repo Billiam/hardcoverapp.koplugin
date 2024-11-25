@@ -90,11 +90,11 @@ published book, with a calculation like:
 In both cases, this may not exactly match the page of the published document, and can even be far off if there
 are large differences in the total pages.
 
-#### Settings
+## Settings
 
 ![A settings menu containing the following options: Checkboxes for Automatically link by ISBN, Automatically link by Hardcover identifiers and Automatically link by title and author. Below that is an item to change the Track progress frequency showing the current setting (1 minute), and a checkbox to Always track progress by default.](https://github.com/user-attachments/assets/dc8a397b-f36d-49da-b880-d04d47219ed0)
 
-##### Automatic linking
+### Automatic linking
 
 With automatic linking enabled, the plugin will attempt to find the matching book and/or edition on Hardcover
 when a new document is opened, if no book has been linked already. These options are off by default.
@@ -106,12 +106,12 @@ when a new document is opened, if no book has been linked already. These options
 * **Automatically link by title**: If the document metadata contains a title, choose the first book returned from
 hardcover search results for that title and document author (if available).
   
-##### Track progress frequency
+### Track progress frequency
 
 By default, no more than one update per minute will be sent to Hardcover for page turn events. If you don't need updates
 this frequently, and to save battery, you can decrease this frequency further.
 
-##### Always track progress by default
+### Always track progress by default
 
 When always track progress is enabled, new documents will have the [track progress](#automatically-track-progress) option
 enabled by automatically. You can still turn off `Track progress` on a per-document basis when this setting is enabled.
