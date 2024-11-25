@@ -13,6 +13,8 @@ A KOReader plugin to update your [Hardcover.app](https://hardcover.app) reading 
 
 The Hardcover plugin's menu can be found in the Bookmark top menu when a document is active.
 
+![Hardcover plugin main menu with the following menu items: the currently linked book (Frankenstein), an option to change the edition specific edition, a checkbox to Automatically track progress, Update status (which opens a submenu), Settings (which opens a submenu), and About](https://github.com/user-attachments/assets/0fd8f6fb-3a61-471f-9450-9a0b3dadc9d1)
+
 ### Linking a book
 
 Before updates can be sent to Hardcover, the plugin needs to know which Hardcover book and/or edition your current document
@@ -21,21 +23,25 @@ represents.
 You can search for a book by selecting `Link book` from the Hardcover menu. If any books can be found based
 on your book's metadata, these will be displayed.
 
+![A dismissable window titled "Select book" with a search button displayed as a magnifying glass in the upper left corner, and a close button on the right. A list of 14 possible books is displayed below this, with buttons to change result pages. The book title ande author are displayed if available, as well as the number of reads by hardcover users and the number of pages if available. Some books display cover images](https://github.com/user-attachments/assets/99d16ef0-6dda-41d8-bfdc-32c97ae09d87)
+
 If you cannot find the book you're looking for, you can touch the magnifying glass icon in the upper left corner and
 begin a manual search.
 
-Selecting one of the presented books will link it to the current document.
+![An input dialog titled "New Search" with the text "Frankenstein Mary Shelley". Behind the dialog, a recent book search result dialog appears with two books](https://github.com/user-attachments/assets/73619448-9821-410a-901f-d8fc61185dd3)
 
 Selecting a Hardcover book or edition will link it to your current document, but will not automatically update your
 reading status on Hardcover. This can be done manually from the [update status](#updating-reading-status) menu, or using
 the [track progress](#automatically-track-progress] option.
 
-To clear the currently linked book, touch and hold to the `Link book` menu item for a moment.
+To clear the currently linked book, touch and hold to the `Linked book` menu item for a moment.
 
 After selecting a book, you can set a specific edition using the `Change edition` menu item. This will present a list
-of available editions for the currently linked book.
+of available editions for the currently linked book. No manual edition search is available
 
 ### Updating reading status
+
+![A menu to update book status containing: a set of radio buttons for the current book status (Want to read, currently reading, read and did not finish), an item to unset the current status. The following section has an item to update the current page (displaying page 154 of 353), add a note, update rating (displaying the current rating of 4.5 stars), and an item to update the status privacy settings which open in a submenu](https://github.com/user-attachments/assets/55b33a0a-bda8-4ec9-918d-0409266abe3b)
 
 To change your book status (Want To Read, Currently Reading, Read, Did Not Finish) on Hardcover, you open the
 `Update status` menu after [linking your book](#linking-a-book). You can also remove the book from your Hardcover
@@ -46,6 +52,12 @@ From this menu you can also update your current page and book rating, and add a 
 Touch and hold the book rating menu item to clear your current rating.
 
 ### Add a journal entry quote
+
+Selecting text to quote:
+
+![Book text with two sentences highlighted. KOReader's highlight menu popup is displayed in the center with an option at the end for Hardcover quote](https://github.com/user-attachments/assets/5dba19a4-f72a-4894-820c-0cfdcc55bf68)
+
+![A form window titled "Create journal entry". The previously selected text appears in an input field at the top. Below that is a toggle for whether the journal entry should be a note or a quote. A button to change the journal edition follows, and one to change the current page. Below those, a toggle to change the journal entry privay with the options Public, Follows and Private. Lastly are two input fields to set journal entry tags and spoiler tags respectively, and then buttons to save the entry or close the window](https://github.com/user-attachments/assets/c386f153-330f-4e1f-afa1-12fdf48a1216)
 
 After selecting document text in a linked document, choose `Hardcover quote` from the highlight menu to display the
 journal entry form, prefilled with the selected text and page.
@@ -79,6 +91,8 @@ In both cases, this may not exactly match the page of the published document, an
 are large differences in the total pages.
 
 #### Settings
+
+![A settings menu containing the following options: Checkboxes for Automatically link by ISBN, Automatically link by Hardcover identifiers and Automatically link by title and author. Below that is an item to change the Track progress frequency showing the current setting (1 minute), and a checkbox to Always track progress by default.](https://github.com/user-attachments/assets/dc8a397b-f36d-49da-b880-d04d47219ed0)
 
 ##### Automatic linking
 
