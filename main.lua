@@ -177,7 +177,7 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
 end
 
 function HardcoverApp:initializePageUpdate()
-  local track_frequency = math.max(math.min(self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 1, 120), 1)
+  local track_frequency = math.max(math.min(self:trackFrequency(), 120), 1)
 
   HardcoverApp._throttledHandlePageUpdate, HardcoverApp._cancelPageUpdate = throttle(track_frequency * 60, HardcoverApp._handlePageUpdate)
 end
@@ -353,7 +353,7 @@ function HardcoverApp:start_read_cache()
 
   Trapper:wrap(function()
     local request_successful = true
-    local book_settings = self:_readBookSettings(self.view.document.file)
+    local book_settings = self:_readBookSettings(self.ui.document.file)
     if book_settings and book_settings.book_id and not self.state.book_status.id then
       if self:syncEnabled() then
         -- non responsive during timeout
@@ -601,6 +601,10 @@ end
 
 function HardcoverApp:pages()
   return self:_readBookSetting(self.ui.document.file, "pages")
+end
+
+function HardcoverApp:trackFrequency()
+  return self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 5
 end
 
 function HardcoverApp:linkBook(book)
@@ -1278,14 +1282,11 @@ function HardcoverApp:getSettingsSubMenuItems()
     },
     {
       text_func = function()
-        local track_frequency = self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 1
-        return "Track progress frequency: " .. track_frequency .. "min"
+        return "Track progress frequency: " .. self:trackFrequency() .. "min"
       end,
       callback = function(menu_instance)
-        local track_frequency = self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 1
-
         local spinner = SpinWidget:new{
-          value = track_frequency,
+          value = self:trackFrequency(),
           value_min = 1,
           value_max = 120,
           value_step = 1,
