@@ -144,7 +144,6 @@ function HardcoverSearchDialog:init()
 end
 
 function HardcoverSearchDialog:search()
-  logger.warn("Search: ", self)
   local search_dialog
   search_dialog = InputDialog:new{
     title = "New search",

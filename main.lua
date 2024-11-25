@@ -859,7 +859,6 @@ function HardcoverApp:getSubMenuItems()
       callback = function(menu_instance)
         local force_search = self:bookLinked()
         local search_value, books = self:findBookOptions(force_search)
-        logger.warn("Search is ", search_value)
         self:buildDialog(
           "Select book",
           books,
