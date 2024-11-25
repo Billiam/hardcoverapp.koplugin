@@ -210,7 +210,7 @@ function HardcoverApp:pageUpdateEvent(page)
 
   local mapped_page = self:getMappedPage(page, self.ui.document:getPageCount(), self:pages())
 
-  self:_throttledHandlePageUpdate(self.view.document.file, mapped_page)
+  self:_throttledHandlePageUpdate(self.ui.document.file, mapped_page)
 end
 
 HardcoverApp.onPageUpdate = HardcoverApp.pageUpdateEvent
@@ -247,7 +247,7 @@ function HardcoverApp:onDocumentClose()
   end
 
   local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
-  self:_handlePageUpdate(self.view.document.file, mapped_page, true)
+  self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
 
   self.state.book_status = {}
   self.state.page_map = nil
@@ -257,16 +257,17 @@ function HardcoverApp:onSuspend()
   self:_cancelPageUpdate()
 
   if not self.state.book_status.id and not self:syncEnabled() then
+  if not self.ui.document or not self.state.book_status.id and not self:syncEnabled() then
     return
   end
 
   local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
 
-  self:_handlePageUpdate(self.view.document.file, mapped_page, true)
+  self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
 end
 
 function HardcoverApp:onEndOfBook()
-  local file_path = self.view.document.file
+  local file_path = self.ui.document.file
   local book_settings = self:_readBookSettings(file_path)
 
   if not book_settings.book_id or not book_settings.sync then
@@ -346,6 +347,10 @@ function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
 end
 
 function HardcoverApp:start_read_cache()
+  if not self.ui.document then
+    return
+  end
+
   Trapper:wrap(function()
     local request_successful = true
     local book_settings = self:_readBookSettings(self.view.document.file)
@@ -450,7 +455,7 @@ local function map_journal_data(data)
 end
 
 function HardcoverApp:journalEntryForm(text, page, document_pages, remote_pages, mapped_page, event_type)
-  local settings = self:_readBookSettings(self.view.document.file) or {}
+  local settings = self:_readBookSettings(self.ui.document.file) or {}
   local edition_id = settings.edition_id
   local edition_format = settings.edition_format
 
@@ -551,18 +556,18 @@ function HardcoverApp:_updateSetting(key, value)
 end
 
 function HardcoverApp:setSync(value)
-  self:_updateBookSetting(self.view.document.file, { sync = value == true })
+  self:_updateBookSetting(self.ui.document.file, { sync = value == true })
   if not value then
     self:_cancelPageUpdate()
   end
 end
 
 function HardcoverApp:editionLinked()
-  return self:_readBookSetting(self.view.document.file, "edition_id") ~= nil
+  return self:_readBookSetting(self.ui.document.file, "edition_id") ~= nil
 end
 
 function HardcoverApp:readLinked()
-  return self:_readBookSetting(self.view.document.file, "read_id") ~= nil
+  return self:_readBookSetting(self.ui.document.file, "read_id") ~= nil
 end
 
 -- TODO: Cache until book closed/opened/linked/unlinked
@@ -571,23 +576,23 @@ function HardcoverApp:bookLinked()
 end
 
 function HardcoverApp:getLinkedTitle()
-  return self:_readBookSetting(self.view.document.file, "title")
+  return self:_readBookSetting(self.ui.document.file, "title")
 end
 
 function HardcoverApp:getLinkedBookId()
-  return self:_readBookSetting(self.view.document.file, "book_id")
+  return self:_readBookSetting(self.ui.document.file, "book_id")
 end
 
 function HardcoverApp:getLinkedEditionFormat()
-  return self:_readBookSetting(self.view.document.file, "edition_format")
+  return self:_readBookSetting(self.ui.document.file, "edition_format")
 end
 
 function HardcoverApp:getLinkedEditionId()
-  return self:_readBookSetting(self.view.document.file, "edition_id")
+  return self:_readBookSetting(self.ui.document.file, "edition_id")
 end
 
 function HardcoverApp:syncEnabled()
-  local sync_value = self:_readBookSetting(self.view.document.file, "sync")
+  local sync_value = self:_readBookSetting(self.ui.document.file, "sync")
   if sync_value == nil then
     sync_value = self.settings:readSetting(SETTING_ALWAYS_SYNC)
   end
@@ -595,11 +600,11 @@ function HardcoverApp:syncEnabled()
 end
 
 function HardcoverApp:pages()
-  return self:_readBookSetting(self.view.document.file, "pages")
+  return self:_readBookSetting(self.ui.document.file, "pages")
 end
 
 function HardcoverApp:linkBook(book)
-  local filename = self.view.document.file
+  local filename = self.ui.document.file
 
   local delete = {}
   local clear_keys = {"book_id", "edition_id", "edition_format", "pages", "title"}
@@ -683,7 +688,7 @@ function HardcoverApp:linkBookByTitle()
 end
 
 function HardcoverApp:clearLink()
-  self:_updateBookSetting(self.view.document.file, { _delete = { 'book_id', 'edition_id', 'edition_format', 'pages', 'title' }})
+  self:_updateBookSetting(self.ui.document.file, { _delete = { 'book_id', 'edition_id', 'edition_format', 'pages', 'title' }})
   self:registerHighlight()
 end
 
@@ -730,7 +735,7 @@ function HardcoverApp:findBookOptions(force_search)
 
   local title = props.title
   if not title or title == "" then
-    local _dir, path = util.splitFilePathName(self.view.document.file)
+    local _dir, path = util.splitFilePathName(self.ui.document.file)
     local filename, _suffix = util.splitFileNameSuffix(path)
 
     title = filename:gsub("_", " ")
@@ -960,7 +965,7 @@ Settings:
 end
 
 function HardcoverApp:updateCurrentBookStatus(status, privacy_setting_id)
-  self:updateBookStatus(self.view.document.file, status, privacy_setting_id)
+  self:updateBookStatus(self.ui.document.file, status, privacy_setting_id)
   if not self.state.book_status.id then
     showError("Book status could not be updated")
   end
