@@ -171,18 +171,22 @@ function HardcoverApi:query(query, parameters)
   end, true, true)
 
 
-  if completed then
+  if completed and content then
     local code, response = string.match(content, "^([^:]*):(.*)")
-    if code == "200" then
+    if string.find(code, "^2%d%d") then
 
       local data = json.decode(response, json.decode.simple)
       if data.data then
         return data.data
       elseif data.errors or data.error then
         local err = data.errors or data.error
-        logger.err("Query error", err)
+        return nil, { error = err }
       end
+    elseif not string.find(code, "^%d%d%d$") then
+      return nil, { completed = false }
     end
+  else
+    return nil, { completed = completed }
   end
 end
 
@@ -219,8 +223,12 @@ function HardcoverApi:_query(query, parameters)
     return code .. ':'
   end
 
-  if code and code < 200 or code > 299 then
-    logger.dbg("Request error", code, responseBody)
+  if type(code) == "string" then
+    logger.dbg("Request error", code)
+  end
+
+  if type(code) == "number" and (code < 200 or code > 299) then
+    logger.dbg("Request error", code, content)
   end
 
   return code .. ':' .. content
@@ -457,9 +465,9 @@ function HardcoverApi:findUserBook(book_id, user_id)
     }
   ]] .. user_book_fragment
 
-  local results = self:query(read_query, { id = book_id, userId = user_id })
+  local results, err = self:query(read_query, { id = book_id, userId = user_id })
   if not results or not results.user_books then
-    return {}
+    return {}, err
   end
 
   return results.user_books[1]
