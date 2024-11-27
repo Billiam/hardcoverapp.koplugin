@@ -52,6 +52,7 @@ local throttle = function(seconds, action)
   end
 
   local cancel = function()
+    is_scheduled = false
     return UIManager:unschedule(scheduled_action)
   end
 
