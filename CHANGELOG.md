@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### 🩹 Fixes
+
+* Fixed autolink failing for hardcover identifiers and title
+* Fixed autolink not displaying success notification
+
 ## 0.0.2 (2024-11-27)
 
 ### 🩹 Fixes
