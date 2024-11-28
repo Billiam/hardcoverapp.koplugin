@@ -1,0 +1,21 @@
+name: Releases
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zip release
+        run: zip -r hardcoverapp.koplugin.zip . -x '*.git*'
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: hardcoverapp.koplugin.zip
