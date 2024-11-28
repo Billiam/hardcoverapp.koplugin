@@ -6,7 +6,9 @@ local Font = require("ui/font")
 local InfoMessage = require("ui/widget/infomessage")
 local JournalDialog = require("journal_dialog")
 local LuaSettings = require("frontend/luasettings")
+local NetworkManager = require("ui/network/manager")
 local Notification = require("ui/widget/notification")
+local Scheduler = require("scheduler")
 local SearchDialog = require("search_dialog")
 local SpinWidget = require("ui/widget/spinwidget")
 local T = require("ffi/util").template
@@ -137,9 +139,9 @@ function HardcoverApp:init()
     pos = nil,
     search_results = {},
     book_status = {},
-    reader_cache_tries = 0
+    page_update_pending = false
   }
-
+  --logger.warn("HARDCOVER app init")
   self.settings = LuaSettings:open(("%s/%s"):format(DataStorage:getSettingsDir(), "hardcoversync_settings.lua"))
 
   self:onDispatcherRegisterActions()
@@ -148,6 +150,9 @@ function HardcoverApp:init()
 end
 
 function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
+  --logger.warn("HARDCOVER: Throttled page update")
+  self.page_update_pending = false
+
   local book_settings = self:_readBookSettings(filename)
   if not book_settings.book_id or not book_settings.sync then
     return
@@ -163,16 +168,22 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
     return
   end
 
-  local apiUpdate = function()
-    Trapper:wrap(function()
-      Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
-    end)
+  local immediate_update = function()
+    local result = Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
+    if result then
+
+      self.state.book_status = result
+    end
+  end
+
+  local trapped_update = function()
+    Trapper:wrap(immediate_update)
   end
 
   if immediate then
-    apiUpdate()
+    immediate_update()
   else
-    UIManager:scheduleIn(1, apiUpdate)
+    UIManager:scheduleIn(1, trapped_update)
   end
 end
 
@@ -208,14 +219,15 @@ function HardcoverApp:pageUpdateEvent(page)
     return
   end
 
+  --logger.warn("HARDCOVER page update event pending")
   local mapped_page = self:getMappedPage(page, self.ui.document:getPageCount(), self:pages())
-
   self:_throttledHandlePageUpdate(self.ui.document.file, mapped_page)
+  self.page_update_pending = true
 end
 
 HardcoverApp.onPageUpdate = HardcoverApp.pageUpdateEvent
 function HardcoverApp:onPosUpdate(_, page)
-  if self.state.reader_ready then
+  if self.state.process_page_turns then
     self:pageUpdateEvent(page)
   end
 end
@@ -226,17 +238,16 @@ end
 
 -- TODO: event for loading reader?
 function HardcoverApp:onReaderReady()
+  --logger.warn("HARDCOVER on ready")
+
   self:cachePageMap()
   self:registerHighlight()
 
-  UIManager:scheduleIn(2, self.start_read_cache, self)
+  UIManager:scheduleIn(2, self.startReadCache, self)
 end
 
 function HardcoverApp:onDocumentClose()
-  self.state.reader_ready = false
-  self.state.reader_cache_tries = 0
-
-  UIManager:unschedule(self.fetch_current_book)
+  UIManager:unschedule(self.startCacheRead)
 
   if self._cancelPageUpdate then
     self:_cancelPageUpdate()
@@ -246,24 +257,35 @@ function HardcoverApp:onDocumentClose()
     return
   end
 
-  local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
-  self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
+  if self.page_update_pending then
+    local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
+    self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
+  end
 
+  self.process_page_turns = false
+  self.page_update_pending = false
   self.state.book_status = {}
   self.state.page_map = nil
 end
 
-function HardcoverApp:onSuspend()
-  self:_cancelPageUpdate()
-
-  if not self.state.book_status.id and not self:syncEnabled() then
-  if not self.ui.document or not self.state.book_status.id and not self:syncEnabled() then
-    return
+function HardcoverApp:onNetworkDisconnecting()
+  --logger.warn("HARDCOVER on disconnecting")
+  if self._cancelPageUpdate then
+    self:_cancelPageUpdate()
   end
 
-  local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
+  Scheduler:clear()
 
-  self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
+  if self.page_update_pending and self.ui.document and self.state.book_status.id and self:syncEnabled() then
+    local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
+    self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
+  end
+  self.page_update_pending = false
+end
+
+function HardcoverApp:onNetworkConnected()
+  --logger.warn("HARDCOVER on connected")
+  self:startReadCache()
 end
 
 function HardcoverApp:onEndOfBook()
@@ -346,46 +368,59 @@ function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
   end
 end
 
-function HardcoverApp:start_read_cache()
+function HardcoverApp:startReadCache()
+  --logger.warn("HARDCOVER start read cache")
   if not self.ui.document then
+    --logger.warn("HARDCOVER read cache fired outside of document")
     return
   end
 
-  Trapper:wrap(function()
-    local request_successful = true
-    local book_settings = self:_readBookSettings(self.ui.document.file)
-    if book_settings and book_settings.book_id and not self.state.book_status.id then
-      if self:syncEnabled() then
-        -- non responsive during timeout
-        -- may not need to do this until a page event
-        self:cacheUserBook()
-        if not self.state.book_status.id then
-          -- book cache failed
-          request_successful = false
-        end
-      end
-    else
-      self:tryAutolink()
+  local cancel
+
+  local restart = function()
+    --logger.warn("HARDCOVER restart cache fetch")
+    cancel()
+    UIManager:scheduleIn(60, self.startReadCache, self)
+  end
+
+  cancel = Scheduler:withRetries(6, 3, function(success, fail)
+    --logger.warn("Hardcover retry retrying")
+    if not NetworkManager:isConnected() then
+      return restart()
     end
 
-    if not request_successful then
-      if self.state.reader_cache_tries < 3 then
-        self.state.reader_cache_tries = self.state.reader_cache_tries + 1
-
-        UIManager:scheduleIn(self.state.reader_cache_tries ^ 3, self.start_read_cache, self)
-      else
-        local NetworkManager = require("ui/network/manager")
-        if NetworkManager:isConnected() then
-          UIManager:show(Notification:new{
-            text = _("Failed to fetch book information from Hardcover"),
-          })
+    Trapper:wrap(function()
+      local book_settings = self:_readBookSettings(self.ui.document.file)
+      --logger.warn("HARDCOVER", book_settings)
+      if book_settings and book_settings.book_id and not self.state.book_status.id then
+        if self:syncEnabled() then
+          local err = self:cacheUserBook()
+          if err then
+            --logger.warn("HARDCOVER cache error", err)
+          end
+          if err and err.completed == false then
+            return fail(err)
+          end
         end
-        self.state.reader_cache_tries = 0
-        self.state.reader_ready = true
+      else
+        self:tryAutolink()
       end
-    else
-      self.state.reader_cache_tries = 0
-      self.state.reader_ready = true
+      --logger.warn("HARDCOVER Retry successful")
+      success()
+    end)
+  end,
+
+  function()
+    --logger.warn("HARDCOVER enabling page turns")
+    self.state.process_page_turns = true
+  end,
+
+  function()
+    if NetworkManager:isConnected() then
+      UIManager:show(Notification:new{
+        text = _("Failed to fetch book information from Hardcover"),
+      })
+      self.connection_failed = true
     end
   end)
 end
@@ -558,7 +593,10 @@ end
 function HardcoverApp:setSync(value)
   self:_updateBookSetting(self.ui.document.file, { sync = value == true })
   if not value then
-    self:_cancelPageUpdate()
+    if self._cancelPageUpdate then
+      self:_cancelPageUpdate()
+    end
+    self.page_update_pending = false
   end
 end
 
@@ -777,7 +815,10 @@ function HardcoverApp:buildDialog(title, items, active_item, book_callback, sear
 end
 
 function HardcoverApp:cacheUserBook()
-  self.state.book_status = Api:findUserBook(self:getLinkedBookId(), self:getUserId()) or {}
+  local status, errors = Api:findUserBook(self:getLinkedBookId(), self:getUserId())
+  self.state.book_status = status or {}
+
+  return errors
 end
 
 function HardcoverApp:cachePageMap()
