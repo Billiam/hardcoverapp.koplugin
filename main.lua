@@ -242,7 +242,9 @@ function HardcoverApp:onReaderReady()
   self:cachePageMap()
   self:registerHighlight()
 
-  UIManager:scheduleIn(2, self.startReadCache, self)
+  if self.ui.document and self:syncEnabled() then
+    UIManager:scheduleIn(2, self.startReadCache, self)
+  end
 end
 
 function HardcoverApp:onDocumentClose()
@@ -284,7 +286,9 @@ end
 
 function HardcoverApp:onNetworkConnected()
   --logger.warn("HARDCOVER on connected")
-  self:startReadCache()
+  if self.ui.document and self:syncEnabled() then
+    self:startReadCache()
+  end
 end
 
 function HardcoverApp:onEndOfBook()
@@ -591,7 +595,11 @@ end
 
 function HardcoverApp:setSync(value)
   self:_updateBookSetting(self.ui.document.file, { sync = value == true })
-  if not value then
+  if value then
+    if not self.state.book_status.id then
+      self:startReadCache()
+    end
+  else
     if self._cancelPageUpdate then
       self:_cancelPageUpdate()
     end
