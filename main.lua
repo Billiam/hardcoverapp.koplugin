@@ -236,7 +236,6 @@ function HardcoverApp:onUpdatePos()
   self:cachePageMap()
 end
 
--- TODO: event for loading reader?
 function HardcoverApp:onReaderReady()
   --logger.warn("HARDCOVER on ready")
 
@@ -608,7 +607,6 @@ function HardcoverApp:readLinked()
   return self:_readBookSetting(self.ui.document.file, "read_id") ~= nil
 end
 
--- TODO: Cache until book closed/opened/linked/unlinked
 function HardcoverApp:bookLinked()
   return self:getLinkedBookId() ~= nil
 end
@@ -786,7 +784,6 @@ function HardcoverApp:findBookOptions(force_search)
   return title, Api:findBooks(title, props.authors, user_id)
 end
 
--- TODO might be easier not to reuse the dialog
 function HardcoverApp:buildDialog(title, items, active_item, book_callback, search_callback, search)
   book_callback = book_callback or self.linkBook
 

@@ -357,10 +357,6 @@ function HardcoverApi:findEditions(book_id, user_id)
   return mapped_results
 end
 
--- TODO: determine what needs to be saved
-  -- Adding a new book read only requires a book, but implies an edition
-    -- starting progress only requires a book id. Edition ID is optional
-    -- update book progress requires an id. The previous status id?
 function HardcoverApi:search(title, author, userId, page)
   page = page or 1
   local query = [[
