@@ -62,6 +62,7 @@ fragment EditionParts on editions {
 local user_book_fragment = [[
 fragment UserBookParts on user_books {
   id
+  book_id
   status_id
   edition_id
   privacy_setting_id
@@ -552,6 +553,7 @@ function HardcoverApi:createRead(user_book_id, edition_id, page, started_at)
           progress_pages
           user_book {
             id
+            book_id
             status_id
             edition_id
             privacy_setting_id
@@ -591,6 +593,7 @@ function HardcoverApi:updatePage(user_read_id, edition_id, page, started_at)
           progress_pages
           user_book {
             id
+            book_id
             status_id
             edition_id
             privacy_setting_id
