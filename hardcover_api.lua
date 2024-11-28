@@ -20,7 +20,7 @@ local HardcoverApi = {
 
 local book_fragment = [[
 fragment BookParts on books {
-  id
+  book_id: id
   title
   release_year
   users_read_count
@@ -421,7 +421,6 @@ end
 
 function HardcoverApi:normalizedEdition(edition)
   local result = edition.book
-  result.book_id = result.id
 
   result.edition_id = edition.id
   result.edition_format = edition.edition_format
@@ -439,6 +438,13 @@ function HardcoverApi:normalizedEdition(edition)
   result.users_count = edition.users_count
 
   return result
+end
+
+function HardcoverApi:normalizeUserBookRead(user_book_read)
+  local user_book = user_book_read.user_book
+  user_book_read.user_book = nil
+  user_book.user_book_reads = { user_book_read }
+  return user_book
 end
 
 
@@ -567,12 +573,7 @@ function HardcoverApi:createRead(user_book_id, edition_id, page, started_at)
   local result = self:query(query, { id = user_book_id, pages = page, editionId = edition_id, startedAt = started_at })
   if result and result.update_user_book_read then
     local user_book_read = result.insert_user_book_read.user_book_read
-
-    local user_book_result = user_book_read.user_book
-    user_book_read.user_book = nil
-    user_book_result.user_book_reads = { user_book_read }
-
-    return user_book_result
+    return self:normalizeUserBookRead(user_book_read)
   end
 end
 
@@ -606,13 +607,7 @@ function HardcoverApi:updatePage(user_read_id, edition_id, page, started_at)
 
   local result = self:query(query, { id = user_read_id, pages = page, editionId = edition_id, startedAt = started_at})
   if result and result.update_user_book_read then
-    local user_book_read = result.update_user_book_read.user_book_read
-
-    local user_book_result = user_book_read.user_book
-    user_book_read.user_book = nil
-    user_book_result.user_book_reads = { user_book_read }
-
-    return user_book_result
+    return self:normalizeUserBookRead(result.update_user_book_read.user_book_read)
   end
 end
 

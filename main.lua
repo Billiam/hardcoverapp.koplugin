@@ -671,7 +671,7 @@ function HardcoverApp:linkBook(book)
     _delete = delete
   }
 
-  if self.state.book_status.id == new_settings.book_id and self.state.book_status.edition_id == new_settings.edition_id then
+  if self.state.book_status.book_id == new_settings.book_id and self.state.book_status.edition_id == new_settings.edition_id then
     return
   end
 
@@ -685,20 +685,22 @@ function HardcoverApp:linkBook(book)
       -- update edition
       self.state.book_status = Api:updateUserBook(new_settings.book_id, self.state.book_status.status_id, self.state.book_status.privacy_setting_id, new_settings.edition_id) or {}
     end
-
-    return true
   end
+
+  return true
 end
 
 
 function HardcoverApp:autolinkBook(book)
-  if book then
-    local linked = self:linkBook(book)
-    if linked then
-      UIManager:show(Notification:new{
-        text = _("Linked to: " .. book.title),
-      })
-    end
+  if not book then
+    return
+  end
+
+  local linked = self:linkBook(book)
+  if linked then
+    UIManager:show(Notification:new{
+      text = _("Linked to: " .. book.title),
+    })
   end
 end
 
@@ -709,8 +711,10 @@ function HardcoverApp:linkBookByIsbn()
   if identifiers.isbn_10 or identifiers.isbn_13 then
     local user_id = self:getUserId()
     local book_lookup = Api:findBookByIdentifiers({ isbn_10 = identifiers.isbn_10, isbn_13 = identifiers.isbn_13 }, user_id)
-    self:autolinkBook(book_lookup)
-    return true
+    if book_lookup then
+      self:autolinkBook(book_lookup)
+      return true
+    end
   end
 end
 
@@ -721,7 +725,10 @@ function HardcoverApp:linkBookByHardcover()
   if identifiers.book_slug or identifiers.edition_id then
     local user_id = self:getUserId()
     local book_lookup = Api:findBookByIdentifiers({ book_slug = identifiers.book_slug, edition_id = identifiers.edition_id }, user_id)
-    self:autolinkBook(book_lookup)
+    if book_lookup then
+      self:autolinkBook(book_lookup)
+      return true
+    end
   end
 end
 

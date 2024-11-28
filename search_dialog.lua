@@ -55,7 +55,7 @@ function HardcoverSearchDialog:createListItem(book, active_item)
     mandatory = info,
     mandatory_dim = true,
     file = "hardcover-" .. book.id,
-    book_id = book.id,
+    book_id = book.book_id,
     edition_id = book.edition_id,
     edition_format = book.edition_format,
     highlight = active,
