@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### 🩹 Fixes
+
+* Fix error when sorting books in hardcover search
+
 ## 0.0.3 (2024-11-29)
 
 ### 🩹 Fixes
