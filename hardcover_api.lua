@@ -262,7 +262,7 @@ function HardcoverApi:hydrateBooks(ids, user_id)
 
       -- sort books by original ID order
       table.sort(list, function (a, b)
-        return id_order[a.id] < id_order[b.id]
+        return id_order[a.book_id] < id_order[b.book_id]
       end)
     end
 

@@ -48,13 +48,13 @@ function HardcoverSearchDialog:createListItem(book, active_item)
     info = book.users_read_count .. " reads"
   end
 
-  local active = (book.edition_id and book.edition_id == active_item.edition_id) or (book.id == active_item.book_id)
+  local active = (book.edition_id and book.edition_id == active_item.edition_id) or (book.book_id == active_item.book_id)
 
   local result = {
     title = title,
     mandatory = info,
     mandatory_dim = true,
-    file = "hardcover-" .. book.id,
+    file = "hardcover-" .. book.book_id,
     book_id = book.book_id,
     edition_id = book.edition_id,
     edition_format = book.edition_format,
