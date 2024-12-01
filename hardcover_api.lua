@@ -392,7 +392,7 @@ function HardcoverApi:findBookByIdentifiers(identifiers, user_id)
   end
 
   if identifiers.book_slug then
-    local book = self:findBookBySlug({ identifiers.book_slug }, user_id)
+    local book = self:findBookBySlug(identifiers.book_slug, user_id)
     if book then
       return book
     end

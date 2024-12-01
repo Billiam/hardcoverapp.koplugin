@@ -97,7 +97,7 @@ local function parseIdentifiers(identifiers)
       result.book_slug = hc
     end
 
-    local hc_edition = string.match(line, "hardcover-edition:(%d+)")
+    local hc_edition = string.match(line, "hardcover%-edition:(%d+)")
 
     if hc_edition then
       result.edition_id = hc_edition
