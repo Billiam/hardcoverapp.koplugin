@@ -83,7 +83,7 @@ local HIGHLIGHT_MENU_NAME = "13_0_make_hardcover_highlight_item"
 local CATEGORY_TAG = "Tag"
 
 local function parseIdentifiers(identifiers)
-  result = {}
+  local result = {}
 
   if not identifiers then
     return result
@@ -94,13 +94,13 @@ local function parseIdentifiers(identifiers)
     -- check for hardcover: and hardcover-edition:
     local hc = string.match(line, "hardcover:([%w_-]+)")
     if hc then
-      identifiers.book_slug = hc
+      result.book_slug = hc
     end
 
     local hc_edition = string.match(line, "hardcover-edition:(%d+)")
 
     if hc_edition then
-      identifiers.edition_id = hc_edition
+      result.edition_id = hc_edition
     end
 
     if not hc and not hc_edition then
