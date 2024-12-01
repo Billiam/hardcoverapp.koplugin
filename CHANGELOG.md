@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+* Fix failed identifier parsing by hardcover slug
+* Fixed error when searching for books by hardcover identifiers
+
 ## 0.0.4 (2024-12-01)
 
 ### 🩹 Fixes
