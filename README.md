@@ -32,7 +32,7 @@ begin a manual search.
 
 Selecting a Hardcover book or edition will link it to your current document, but will not automatically update your
 reading status on Hardcover. This can be done manually from the [update status](#updating-reading-status) menu, or using
-the [track progress](#automatically-track-progress] option.
+the [track progress](#automatically-track-progress) option.
 
 To clear the currently linked book, touch and hold to the `Linked book` menu item for a moment.
 
