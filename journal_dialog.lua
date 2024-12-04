@@ -61,7 +61,7 @@ function JournalDialog:init()
     return self.save_dialog_callback({
       book_id = self.book_id,
       edition_id = self.edition_id,
-      text = self.input,
+      text = self.note_input:getText(),
       page = self.page,
       pages = self.pages,
       event_type = self.event_type,
@@ -72,6 +72,7 @@ function JournalDialog:init()
   end
 
   InputDialog.init(self)
+  self.note_input = self._input_widget
 
   local journal_type
   journal_type = ToggleSwitch:new{
