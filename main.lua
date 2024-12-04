@@ -460,23 +460,18 @@ local function map_journal_data(data)
     entry = data.text,
     edition_id = data.edition_id,
     privacy_setting_id = data.privacy_setting_id,
+    tags = {}
   }
-  local tags
+
   if #data.tags > 0 then
-    tags = tags or {}
     for _, tag in ipairs(data.tags) do
-      table.insert(tags, { category = CATEGORY_TAG, tag = tag, spoiler = false })
+      table.insert(result.tags, { category = CATEGORY_TAG, tag = tag, spoiler = false })
     end
   end
   if #data.hidden_tags > 0 then
-    tags = tags or {}
     for _, tag in ipairs(data.hidden_tags) do
-      table.insert(tags, { category = CATEGORY_TAG, tag = tag, spoiler = true })
+      table.insert(result.tags, { category = CATEGORY_TAG, tag = tag, spoiler = true })
     end
-  end
-
-  if tags and #tags > 0 then
-    result.tags = tags
   end
 
   if data.page then
