@@ -460,7 +460,7 @@ local function map_journal_data(data)
     entry = data.text,
     edition_id = data.edition_id,
     privacy_setting_id = data.privacy_setting_id,
-    tags = {}
+    tags = json.util.InitArray({})
   }
 
   if #data.tags > 0 then
