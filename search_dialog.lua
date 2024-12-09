@@ -79,6 +79,7 @@ function HardcoverSearchDialog:createListItem(book, active_item)
 
   if self.compatibility_mode then
     result.text = result.title
+    result.dim = result.highlight
     if book.edition_id then
       result.post_text = book.filetype
     else
