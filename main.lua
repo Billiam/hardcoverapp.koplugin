@@ -146,7 +146,7 @@ function HardcoverApp:init()
   --logger.warn("HARDCOVER app init")
   self.settings = LuaSettings:open(("%s/%s"):format(DataStorage:getSettingsDir(), "hardcoversync_settings.lua"))
 
-  if KoreaderVersion:getNormalizedCurrentVersion() < 202407000000 then
+  if KoreaderVersion:getNormalizedCurrentVersion() < 202403010000 then
     if self.settings:readSetting(SETTING_COMPATIBILITY_MODE) == nil then
       self:_updateSetting(SETTING_COMPATIBILITY_MODE, true)
     end
