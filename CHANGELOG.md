@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Added compatibility mode with reduced detail in search dialog for incompatible versions of KOReader
+
 ## 0.0.5 (2024-12-04)
 
 * Fix failed identifier parsing by hardcover slug
