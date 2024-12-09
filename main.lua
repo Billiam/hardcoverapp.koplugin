@@ -24,6 +24,7 @@ local math = require("math")
 local os = require("os")
 local throttle = require("throttle")
 local util = require("util")
+local KoreaderVersion = require("version")
 
 local VERSION = {0, 0, 5}
 local RELEASE_API = "https://api.github.com/repos/billiam/hardcoverapp.koplugin/releases?per_page=1"
@@ -75,6 +76,7 @@ local SETTING_LINK_BY_ISBN = "link_by_isbn"
 local SETTING_LINK_BY_HARDCOVER = "link_by_hardcover"
 local SETTING_LINK_BY_TITLE = "link_by_title"
 local SETTING_ALWAYS_SYNC = "always_sync"
+local SETTING_COMPATIBILITY_MODE = "compatibility_mode"
 local SETTING_USER_ID = "user_id"
 local SETTING_TRACK_FREQUENCY = "track_frequency"
 
@@ -143,6 +145,12 @@ function HardcoverApp:init()
   }
   --logger.warn("HARDCOVER app init")
   self.settings = LuaSettings:open(("%s/%s"):format(DataStorage:getSettingsDir(), "hardcoversync_settings.lua"))
+
+  if KoreaderVersion:getNormalizedCurrentVersion() < 202407000000 then
+    if self.settings:readSetting(SETTING_COMPATIBILITY_MODE) == nil then
+      self:_updateSetting(SETTING_COMPATIBILITY_MODE, true)
+    end
+  end
 
   self:onDispatcherRegisterActions()
   self:initializePageUpdate()
@@ -646,6 +654,10 @@ function HardcoverApp:trackFrequency()
   return self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 5
 end
 
+function HardcoverApp:compatibilityMode()
+  return self.settings:readSetting(SETTING_COMPATIBILITY_MODE) == true
+end
+
 function HardcoverApp:linkBook(book)
   local filename = self.ui.document.file
 
@@ -812,6 +824,7 @@ function HardcoverApp:buildDialog(title, items, active_item, book_callback, sear
   end
 
   self.search_dialog = SearchDialog:new {
+    compatibility_mode = self:compatibilityMode(),
     title = title,
     items = items,
     active_item = active_item,
@@ -1359,8 +1372,25 @@ function HardcoverApp:getSettingsSubMenuItems()
       callback = function()
         local setting = self.settings:readSetting(SETTING_ALWAYS_SYNC) == true
         self:_updateSetting(SETTING_ALWAYS_SYNC, not setting)
-      end
+      end,
     },
+    {
+      text = "Compatibility mode",
+      checked_func = function()
+        return self:compatibilityMode()
+      end,
+      callback = function()
+        local setting = self:compatibilityMode()
+        self:_updateSetting(SETTING_COMPATIBILITY_MODE, not setting)
+      end,
+      hold_callback = function()
+        UIManager:show(InfoMessage:new{
+          text = [[Disable fancy menu for book and edition search results.
+
+May improve compatibility for some versions of KOReader]],
+        })
+      end
+    }
   }
 end
 

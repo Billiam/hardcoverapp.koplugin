@@ -4,6 +4,7 @@ local Geom = require("ui/geometry")
 local GestureRange = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local InputDialog = require("ui/widget/inputdialog")
+local Menu = require("ui/widget/menu")
 local SearchMenu = require("searchmenu")
 local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
@@ -20,7 +21,9 @@ local HardcoverSearchDialog = InputContainer:extend {
   select_cb = nil,
   title = nil,
   search_callback = nil,
-  search_value = nil
+  search_value = nil,
+
+  compatibility_mode = true
 }
 
 function HardcoverSearchDialog:createListItem(book, active_item)
@@ -74,6 +77,15 @@ function HardcoverSearchDialog:createListItem(book, active_item)
     result.authors = table.concat(authors, ", ")
   end
 
+  if self.compatibility_mode then
+    result.text = result.title
+    if book.edition_id then
+      result.post_text = book.filetype
+    else
+      result.post_text = result.authors
+    end
+  end
+
   if book.filetype then
     result.filetype = book.filetype
   end
@@ -112,8 +124,10 @@ function HardcoverSearchDialog:init()
     left_icon = "appbar.search"
     left_icon_callback = function() self:search() end
   end
+  local menu_class = self.compatibility_mode and Menu or SearchMenu
 
-  self.menu = SearchMenu:new {
+  self.menu = menu_class:new {
+    single_line = false,
     title = self.title or "Select book",
     fullscreen = true,
     item_table = self:parseItems(self.items, self.active_item),

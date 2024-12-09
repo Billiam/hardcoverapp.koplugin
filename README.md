@@ -117,3 +117,8 @@ When always track progress is enabled, new documents will have the [track progre
 enabled by automatically. You can still turn off `Track progress` on a per-document basis when this setting is enabled.
 
 Books still must be linked (manually or automatically) to send updates to Hardcover.
+
+### Compatibility mode
+
+When enabled, book and edition searches will be displayed in a simplified list with minimal data. This mode is the
+default for KOReader versions prior to v2024.07
