@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.0.6 (2024-12-10)
 
 * Added compatibility mode with reduced detail in search dialog for incompatible versions of KOReader
+* Fix crash when selecting specific edition in journal dialog
 
 ## 0.0.5 (2024-12-04)
 

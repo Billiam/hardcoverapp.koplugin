@@ -26,7 +26,7 @@ local throttle = require("throttle")
 local util = require("util")
 local KoreaderVersion = require("version")
 
-local VERSION = {0, 0, 5}
+local VERSION = {0, 0, 6}
 local RELEASE_API = "https://api.github.com/repos/billiam/hardcoverapp.koplugin/releases?per_page=1"
 
 local HardcoverApp = WidgetContainer:extend {
