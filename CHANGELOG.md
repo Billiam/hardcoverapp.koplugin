@@ -2,13 +2,20 @@
 
 ## 0.0.6 (2024-12-10)
 
+### 🚀 Added
+
 * Added compatibility mode with reduced detail in search dialog for incompatible versions of KOReader
+
+### 🩹 Fixes
+
 * Fix crash when selecting specific edition in journal dialog
 
 ## 0.0.5 (2024-12-04)
 
+### 🩹 Fixes
+
 * Fix failed identifier parsing by hardcover slug
-* Fixed error when searching for books by hardcover identifiers
+* Fix error when searching for books by hardcover identifiers
 * Fix note content not saving depending on last focused field
 * Fix note failing to save without tags
 
