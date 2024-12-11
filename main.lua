@@ -812,7 +812,7 @@ function HardcoverApp:buildDialog(title, items, active_item, book_callback, sear
   local callback = function(book)
     self.search_dialog:onClose()
 
-    book_callback(self, book)
+    book_callback(book)
     if self.state.menu_instance then
       self.state.menu_instance:updateItems()
       self.state.menu_instance = nil
