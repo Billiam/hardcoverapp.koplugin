@@ -807,7 +807,7 @@ function HardcoverApp:findBookOptions(force_search)
 end
 
 function HardcoverApp:buildDialog(title, items, active_item, book_callback, search_callback, search)
-  book_callback = book_callback or self.linkBook
+  book_callback = book_callback or function(book) self:linkBook(book) end
 
   local callback = function(book)
     self.search_dialog:onClose()

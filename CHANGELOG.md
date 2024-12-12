@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Fix crash when linking book from hardcover menu
+
 ## 0.0.6 (2024-12-10)
 
 ### 🚀 Added
