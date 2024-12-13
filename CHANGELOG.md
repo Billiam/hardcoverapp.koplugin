@@ -3,6 +3,7 @@
 ## Unreleased
 
 * Fix crash when linking book from hardcover menu
+* Fix automatic book linking not working unless track progress (or always track progress) already set
 
 ## 0.0.6 (2024-12-10)
 
