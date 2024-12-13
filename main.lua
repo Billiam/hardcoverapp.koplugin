@@ -84,6 +84,8 @@ local HIGHLIGHT_MENU_NAME = "13_0_make_hardcover_highlight_item"
 
 local CATEGORY_TAG = "Tag"
 
+local AUTOLINK_SETTINGS = {SETTING_LINK_BY_HARDCOVER, SETTING_LINK_BY_ISBN, SETTING_LINK_BY_TITLE}
+
 local function parseIdentifiers(identifiers)
   local result = {}
 
@@ -250,7 +252,7 @@ function HardcoverApp:onReaderReady()
   self:cachePageMap()
   self:registerHighlight()
 
-  if self.ui.document and self:syncEnabled() then
+  if self.ui.document and (self:syncEnabled() or (not self:bookLinked() and self:autolinkEnabled())) then
     UIManager:scheduleIn(2, self.startReadCache, self)
   end
 end
@@ -416,7 +418,6 @@ function HardcoverApp:startReadCache()
       else
         self:tryAutolink()
       end
-      --logger.warn("HARDCOVER Retry successful")
       success()
     end)
   end,
@@ -644,6 +645,16 @@ function HardcoverApp:syncEnabled()
     sync_value = self.settings:readSetting(SETTING_ALWAYS_SYNC)
   end
   return sync_value == true
+end
+
+function HardcoverApp:autolinkEnabled()
+  for _, setting in ipairs(AUTOLINK_SETTINGS) do
+    if self.settings:readSetting(setting) then
+      return true
+    end
+  end
+
+  return false
 end
 
 function HardcoverApp:pages()
