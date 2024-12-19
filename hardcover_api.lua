@@ -81,71 +81,6 @@ function escapeLike(str)
   return str:gsub("%%", "\\%%"):gsub("_", "\\_")
 end
 
-
-local function sortBooks(list, author)
-  local lower_author = author:lower()
-  -- split authors by ampersand, comma, trim
-  local index = {}
-
-  local author_match = function(author_name, contributor)
-    if not contributor.author then
-      return
-    end
-
-    if contributor.author.name:lower() == author_name then
-      return true
-    end
-
-    for _, alt in b.contributions.author.alternate_names do
-      if alt:lower() == author_name then
-        return true
-      end
-    end
-  end
-
-  -- index books before sorting
-  for _, b in ipairs(list) do
-    local r = {
-      user_read = b.user_books.id ~= nil,
-      author = false
-    }
-
-    if b.contributions.author then
-      r.author = author_match(lower_author, b.contributions)
-      if not r.author and #b.contributions then
-        for _, contributor in ipairs(b.contributions) do
-          if author_match(lower_author, contributor) then
-            r.author = true
-            break
-          end
-        end
-      end
-    end
-
-    index[b.id] = r
-  end
-
-  table.sort(list, function (a, b)
-    -- sort by user reads
-    local ia = index[a.id]
-    local ib = index[b.id]
-
-    if ia.user_read ~= ib.user_read then
-      return ia.user_read
-    end
-
-    if ia.author ~= ib.author then
-      return ia.author == true
-    end
-
-    if a.users_read_count ~= b.users_read_count then
-      return a.users_read_count > b.users_read_count
-    end
-
-    return a.title < b.title
-  end)
-end
-
 function HardcoverApi:me()
   local result = self:query([[{
     me {
@@ -171,7 +106,6 @@ function HardcoverApi:query(query, parameters)
     return self:_query(query, parameters)
   end, true, true)
 
-
   if completed and content then
     local code, response = string.match(content, "^([^:]*):(.*)")
     if string.find(code, "^2%d%d") then
@@ -190,7 +124,6 @@ function HardcoverApi:query(query, parameters)
     return nil, { completed = completed }
   end
 end
-
 
 function HardcoverApi:_query(query, parameters)
   local requestBody = {
@@ -256,12 +189,12 @@ function HardcoverApi:hydrateBooks(ids, user_id)
     if #list > 1 then
       local id_order = {}
 
-      for i,v in ipairs(ids) do
+      for i, v in ipairs(ids) do
         id_order[v] = i
       end
 
       -- sort books by original ID order
-      table.sort(list, function (a, b)
+      table.sort(list, function(a, b)
         return id_order[a.book_id] < id_order[b.book_id]
       end)
     end
@@ -317,7 +250,7 @@ function HardcoverApi:findEditions(book_id, user_id)
   if #edition_list > 1 then
     -- prefer editions with user reads
     local edition_ids = {}
-    for _,edition in ipairs(edition_list) do
+    for _, edition in ipairs(edition_list) do
       table.insert(edition_ids, edition.id)
     end
 
@@ -335,7 +268,7 @@ function HardcoverApi:findEditions(book_id, user_id)
       read_index[read.edition_id] = true
     end
 
-    table.sort(edition_list,function (a, b)
+    table.sort(edition_list, function(a, b)
       -- sort by user reads
       local read_a = read_index[a.id]
       local read_b = read_index[b.id]
@@ -367,7 +300,7 @@ function HardcoverApi:search(title, author, userId, page)
       }
     }]]
   local search = title .. " " .. (author or "")
-  local results = self:query(query, { query = search, page = page})
+  local results = self:query(query, { query = search, page = page })
   if not results then
     return {}
   end
@@ -407,12 +340,12 @@ function HardcoverApi:findBookByIdentifiers(identifiers, user_id)
   if isbnKey then
     local editionSearch = [[
       query ($isbn: String!, $userId: Int!) {
-        editions(where: { ]] .. isbnKey ..  [[: { _eq: $isbn }}) {
+        editions(where: { ]] .. isbnKey .. [[: { _eq: $isbn }}) {
           ...EditionParts
         }
       }]] .. edition_fragment
 
-    local editions = self:query(editionSearch, { isbn = tostring(identifiers[isbnKey]), userId = user_id  })
+    local editions = self:query(editionSearch, { isbn = tostring(identifiers[isbnKey]), userId = user_id })
     if editions and editions.editions and #editions.editions > 0 then
       return self:normalizedEdition(editions.editions[1])
     end
@@ -447,7 +380,6 @@ function HardcoverApi:normalizeUserBookRead(user_book_read)
   return user_book
 end
 
-
 function HardcoverApi:findBooks(title, author, userId)
   if not title or string.match(title, "^%s*$") then
     return {}
@@ -456,7 +388,6 @@ function HardcoverApi:findBooks(title, author, userId)
   title = title:gsub(":.+", ""):gsub("^%s+", ""):gsub("%s+$", "")
   return self:search(title, author, userId)
 end
-
 
 function HardcoverApi:findUserBook(book_id, user_id)
   -- this may not be adequate, as (it's possible) there could be more than one read in progress? Maybe?
@@ -520,10 +451,10 @@ function HardcoverApi:defaultEdition(book_id, user_id)
     -- 3. default ebook edition
     -- 4. default physical edition
     -- 5. most read book edition
-    for _,user_book in ipairs(results.user_books) do
+    for _, user_book in ipairs(results.user_books) do
       local read_edition = _t.dig("user_book", "user_book_reads", 1, "edition")
-      if read_edition then return
-        read_edition
+      if read_edition then
+        return read_edition
       end
       return user_book.edition
     end
@@ -605,7 +536,7 @@ function HardcoverApi:updatePage(user_read_id, edition_id, page, started_at)
     }
   ]]
 
-  local result = self:query(query, { id = user_read_id, pages = page, editionId = edition_id, startedAt = started_at})
+  local result = self:query(query, { id = user_read_id, pages = page, editionId = edition_id, startedAt = started_at })
   if result and result.update_user_book_read then
     return self:normalizeUserBookRead(result.update_user_book_read.user_book_read)
   end
@@ -693,6 +624,5 @@ function HardcoverApi:createJournalEntry(object)
     return result.insert_reading_journal.reading_journal
   end
 end
-
 
 return HardcoverApi
