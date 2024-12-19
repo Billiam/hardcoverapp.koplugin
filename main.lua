@@ -518,7 +518,7 @@ function HardcoverApp:journalEntryForm(text, page, document_pages, remote_pages,
     event_type = event_type or "note",
     book_id = settings.book_id,
     edition_id = settings.edition_id,
-    edition_format = settings.edition_format,
+    edition_format = edition_format,
     page = mapped_page,
     pages = remote_pages,
     save_dialog_callback = function(book_data)
