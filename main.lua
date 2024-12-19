@@ -1,20 +1,9 @@
-local Api = require("hardcover_api")
 local DataStorage = require("datastorage")
-local Dispatcher = require("dispatcher")  -- luacheck:ignore
+local Dispatcher = require("dispatcher")
 local DocSettings = require("docsettings")
-local Font = require("ui/font")
-local InfoMessage = require("ui/widget/infomessage")
-local JournalDialog = require("journal_dialog")
-local LuaSettings = require("frontend/luasettings")
-local NetworkManager = require("ui/network/manager")
-local Notification = require("ui/widget/notification")
+local KoreaderVersion = require("version")
+local LuaSettings = require("luasettings")
 local Scheduler = require("scheduler")
-local SearchDialog = require("search_dialog")
-local SpinWidget = require("ui/widget/spinwidget")
-local T = require("ffi/util").template
-local Trapper = require("ui/trapper")
-local UIManager = require("ui/uimanager")
-local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 local https = require("ssl.https")
 local json = require("json")
@@ -22,11 +11,27 @@ local logger = require("logger")
 local ltn12 = require("ltn12")
 local math = require("math")
 local os = require("os")
-local throttle = require("throttle")
 local util = require("util")
-local KoreaderVersion = require("version")
 
-local VERSION = {0, 0, 6}
+local T = require("ffi/util").template
+
+local Font = require("ui/font")
+local NetworkManager = require("ui/network/manager")
+local Trapper = require("ui/trapper")
+local UIManager = require("ui/uimanager")
+
+local InfoMessage = require("ui/widget/infomessage")
+local Notification = require("ui/widget/notification")
+local SpinWidget = require("ui/widget/spinwidget")
+
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
+
+local Api = require("hardcover_api")
+local JournalDialog = require("journal_dialog")
+local SearchDialog = require("search_dialog")
+local throttle = require("throttle")
+
+local VERSION = { 0, 0, 6 }
 local RELEASE_API = "https://api.github.com/repos/billiam/hardcoverapp.koplugin/releases?per_page=1"
 
 local HardcoverApp = WidgetContainer:extend {
@@ -71,6 +76,8 @@ local ICON_TRASH = "\u{F014}"
 local ICON_STAR = "\u{F005}"
 -- nf-fa-star_half
 local ICON_HALF_STAR = "\u{F089}"
+-- nf-fa-link
+local ICON_LINK = "\u{F0C1}"
 
 local SETTING_LINK_BY_ISBN = "link_by_isbn"
 local SETTING_LINK_BY_HARDCOVER = "link_by_hardcover"
@@ -79,12 +86,17 @@ local SETTING_ALWAYS_SYNC = "always_sync"
 local SETTING_COMPATIBILITY_MODE = "compatibility_mode"
 local SETTING_USER_ID = "user_id"
 local SETTING_TRACK_FREQUENCY = "track_frequency"
+local SETTING_TRACK_METHOD = "track_method"
+local SETTING_TRACK_PERCENTAGE = "track_percentage"
 
 local HIGHLIGHT_MENU_NAME = "13_0_make_hardcover_highlight_item"
 
 local CATEGORY_TAG = "Tag"
 
-local AUTOLINK_SETTINGS = {SETTING_LINK_BY_HARDCOVER, SETTING_LINK_BY_ISBN, SETTING_LINK_BY_TITLE}
+local TRACK_FREQUENCY = "frequency"
+local TRACK_PROGRESS = "progress"
+
+local AUTOLINK_SETTINGS = { SETTING_LINK_BY_HARDCOVER, SETTING_LINK_BY_ISBN, SETTING_LINK_BY_TITLE }
 
 local function parseIdentifiers(identifiers)
   local result = {}
@@ -126,7 +138,7 @@ local function parseIdentifiers(identifiers)
 end
 
 local function showError(err)
-  UIManager:show(InfoMessage:new{
+  UIManager:show(InfoMessage:new {
     text = err,
     icon = "notice-warning",
     timeout = 2
@@ -134,7 +146,12 @@ local function showError(err)
 end
 
 function HardcoverApp:onDispatcherRegisterActions()
-  Dispatcher:registerAction("hardcover_link", { category = "none", event = "HardcoverLink", title = _("Hardcover Link"), general = true, })
+  Dispatcher:registerAction("hardcover_link", {
+    category = "none",
+    event = "HardcoverLink",
+    title = _("Hardcover Link"),
+    general = true,
+  })
 end
 
 function HardcoverApp:init()
@@ -160,7 +177,7 @@ function HardcoverApp:init()
 end
 
 function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
-  --logger.warn("HARDCOVER: Throttled page update")
+  --logger.warn("HARDCOVER: Throttled page update", mapped_page)
   self.page_update_pending = false
 
   local book_settings = self:_readBookSettings(filename)
@@ -181,7 +198,6 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
   local immediate_update = function()
     local result = Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
     if result then
-
       self.state.book_status = result
     end
   end
@@ -198,15 +214,22 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
 end
 
 function HardcoverApp:initializePageUpdate()
-  local track_frequency = math.max(math.min(self:trackFrequency(), 120), 1)
+  local track_frequency = math.max(math.min(self:trackFrequency(), 120), 1) * 60
 
-  HardcoverApp._throttledHandlePageUpdate, HardcoverApp._cancelPageUpdate = throttle(track_frequency * 60, HardcoverApp._handlePageUpdate)
+  HardcoverApp._throttledHandlePageUpdate, HardcoverApp._cancelPageUpdate = throttle(
+    track_frequency,
+    HardcoverApp._handlePageUpdate
+  )
 end
 
 function HardcoverApp:changeTrackFrequency(time)
   self:_updateSetting(SETTING_TRACK_FREQUENCY, time)
   self:_cancelPageUpdate()
   self:initializePageUpdate()
+end
+
+function HardcoverApp:changeTrackPercentageInterval(percent)
+  self:_updateSetting(SETTING_TRACK_PERCENTAGE, percent)
 end
 
 function HardcoverApp:getMappedPage(raw_page, document_pages, remote_pages)
@@ -217,22 +240,52 @@ function HardcoverApp:getMappedPage(raw_page, document_pages, remote_pages)
   end
 
   if remote_pages and document_pages then
-    return math.floor(( raw_page / document_pages) * remote_pages + 0.5)
+    return math.floor((raw_page / document_pages) * remote_pages + 0.5)
   end
 
   return raw_page
 end
 
+function HardcoverApp:getMappedPagePercent(raw_page, document_pages, remote_pages)
+  local mapped_page = self.state.page_map and self.state.page_map[raw_page]
+
+  if mapped_page and remote_pages then
+    return mapped_page / remote_pages
+  end
+
+  if document_pages then
+    return raw_page / document_pages
+  end
+
+  return 0
+end
+
 function HardcoverApp:pageUpdateEvent(page)
+  self.state.last_page = self.state.page
   self.state.page = page
+
   if not (self.state.book_status.id and self:syncEnabled()) then
     return
   end
-
   --logger.warn("HARDCOVER page update event pending")
-  local mapped_page = self:getMappedPage(page, self.ui.document:getPageCount(), self:pages())
-  self:_throttledHandlePageUpdate(self.ui.document.file, mapped_page)
-  self.page_update_pending = true
+  local document_pages = self.ui.document:getPageCount()
+  local mapped_page = self:getMappedPage(page, document_pages, self:pages())
+
+  if self:trackByTime() then
+    self:_throttledHandlePageUpdate(self.ui.document.file, mapped_page)
+    self.page_update_pending = true
+  elseif self:trackByProgress() and self.state.last_page then
+    local percent_interval = self:trackPercentageInterval()
+
+    local original_percent = math.floor(self:getMappedPagePercent(self.state.last_page, document_pages, self:pages()) *
+      100 / percent_interval)
+    local new_percent = math.floor(self:getMappedPagePercent(self.state.page, document_pages, self:pages()) * 100 /
+      percent_interval)
+
+    if original_percent ~= new_percent then
+      self:_handlePageUpdate(self.ui.document.file, mapped_page)
+    end
+  end
 end
 
 HardcoverApp.onPageUpdate = HardcoverApp.pageUpdateEvent
@@ -251,6 +304,7 @@ function HardcoverApp:onReaderReady()
 
   self:cachePageMap()
   self:registerHighlight()
+  self.state.page = self.ui:getCurrentPage()
 
   if self.ui.document and (self:syncEnabled() or (not self:bookLinked() and self:autolinkEnabled())) then
     UIManager:scheduleIn(2, self.startReadCache, self)
@@ -287,7 +341,7 @@ function HardcoverApp:onNetworkDisconnecting()
 
   Scheduler:clear()
 
-  if self.page_update_pending and self.ui.document and self.state.book_status.id and self:syncEnabled() then
+  if self.page_update_pending and self.ui.document and self.state.book_status.id and self:syncEnabled() and self:trackByTime() then
     local mapped_page = self:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
     self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
   end
@@ -397,44 +451,44 @@ function HardcoverApp:startReadCache()
   end
 
   cancel = Scheduler:withRetries(6, 3, function(success, fail)
-    --logger.warn("Hardcover retry retrying")
-    if not NetworkManager:isConnected() then
-      return restart()
-    end
-
-    Trapper:wrap(function()
-      local book_settings = self:_readBookSettings(self.ui.document.file)
-      --logger.warn("HARDCOVER", book_settings)
-      if book_settings and book_settings.book_id and not self.state.book_status.id then
-        if self:syncEnabled() then
-          local err = self:cacheUserBook()
-          if err then
-            --logger.warn("HARDCOVER cache error", err)
-          end
-          if err and err.completed == false then
-            return fail(err)
-          end
-        end
-      else
-        self:tryAutolink()
+      --logger.warn("Hardcover retry retrying")
+      if not NetworkManager:isConnected() then
+        return restart()
       end
-      success()
+
+      Trapper:wrap(function()
+        local book_settings = self:_readBookSettings(self.ui.document.file)
+        --logger.warn("HARDCOVER", book_settings)
+        if book_settings.book_id and not self.state.book_status.id then
+          if self:syncEnabled() then
+            local err = self:cacheUserBook()
+            --if err then
+            --logger.warn("HARDCOVER cache error", err)
+            --end
+            if err and err.completed == false then
+              return fail(err)
+            end
+          end
+        else
+          self:tryAutolink()
+        end
+        success()
+      end)
+    end,
+
+    function()
+      --logger.warn("HARDCOVER enabling page turns")
+      self.state.process_page_turns = true
+    end,
+
+    function()
+      if NetworkManager:isConnected() then
+        UIManager:show(Notification:new {
+          text = _("Failed to fetch book information from Hardcover"),
+        })
+        self.connection_failed = true
+      end
     end)
-  end,
-
-  function()
-    --logger.warn("HARDCOVER enabling page turns")
-    self.state.process_page_turns = true
-  end,
-
-  function()
-    if NetworkManager:isConnected() then
-      UIManager:show(Notification:new{
-        text = _("Failed to fetch book information from Hardcover"),
-      })
-      self.connection_failed = true
-    end
-  end)
 end
 
 function HardcoverApp:registerHighlight()
@@ -453,7 +507,8 @@ function HardcoverApp:registerHighlight()
             raw_page = self.view.document:getPageFromXPointer(selected_text.pos0)
           end
           -- open journal dialog
-          self:journalEntryForm(selected_text.text, raw_page, self.ui.document:getPageCount(), self:pages(), nil, "quote")
+          self:journalEntryForm(selected_text.text, raw_page, self.ui.document:getPageCount(), self:pages(),
+            nil, "quote")
 
           this:onClose()
         end,
@@ -513,7 +568,7 @@ function HardcoverApp:journalEntryForm(text, page, document_pages, remote_pages,
   mapped_page = mapped_page or self:getMappedPage(page, document_pages, remote_pages)
 
   local dialog
-  dialog = JournalDialog:new{
+  dialog = JournalDialog:new {
     input = text,
     event_type = event_type or "note",
     book_id = settings.book_id,
@@ -560,7 +615,9 @@ end
 
 function HardcoverApp:_readBookSettings(filename)
   local books = self.settings:readSetting("books")
-  if not books then return end
+  if not books then
+    return {}
+  end
 
   return books[filename]
 end
@@ -579,9 +636,9 @@ function HardcoverApp:_updateBookSetting(filename, config)
   end
   local book_setting = books[filename]
 
-  for k,v in pairs(config) do
+  for k, v in pairs(config) do
     if k == "_delete" then
-      for _,name in ipairs(v) do
+      for _, name in ipairs(v) do
         book_setting[name] = nil
       end
     else
@@ -597,6 +654,13 @@ function HardcoverApp:_updateSetting(key, value)
   self.settings:flush()
 end
 
+function HardcoverApp:cancelPageUpdate()
+  if self._cancelPageUpdate then
+    self:_cancelPageUpdate()
+  end
+  self.page_update_pending = false
+end
+
 function HardcoverApp:setSync(value)
   self:_updateBookSetting(self.ui.document.file, { sync = value == true })
   if value then
@@ -604,11 +668,14 @@ function HardcoverApp:setSync(value)
       self:startReadCache()
     end
   else
-    if self._cancelPageUpdate then
-      self:_cancelPageUpdate()
-    end
-    self.page_update_pending = false
+    self:cancelPageUpdate()
   end
+end
+
+function HardcoverApp:setTrackMethod(method)
+  self:_updateSetting(SETTING_TRACK_METHOD, method)
+  self:_cancelPageUpdate()
+  self:initializePageUpdate()
 end
 
 function HardcoverApp:editionLinked()
@@ -665,6 +732,19 @@ function HardcoverApp:trackFrequency()
   return self.settings:readSetting(SETTING_TRACK_FREQUENCY) or 5
 end
 
+function HardcoverApp:trackPercentageInterval()
+  return self.settings:readSetting(SETTING_TRACK_PERCENTAGE) or 10
+end
+
+function HardcoverApp:trackByTime()
+  local setting = self.settings:readSetting(SETTING_TRACK_METHOD)
+  return setting == nil or setting == TRACK_FREQUENCY
+end
+
+function HardcoverApp:trackByProgress()
+  return self.settings:readSetting(SETTING_TRACK_METHOD) == TRACK_PROGRESS
+end
+
 function HardcoverApp:compatibilityMode()
   return self.settings:readSetting(SETTING_COMPATIBILITY_MODE) == true
 end
@@ -673,8 +753,8 @@ function HardcoverApp:linkBook(book)
   local filename = self.ui.document.file
 
   local delete = {}
-  local clear_keys = {"book_id", "edition_id", "edition_format", "pages", "title"}
-  for _,key in ipairs(clear_keys) do
+  local clear_keys = { "book_id", "edition_id", "edition_format", "pages", "title" }
+  for _, key in ipairs(clear_keys) do
     if book[key] == nil then
       table.insert(delete, key)
     end
@@ -701,13 +781,13 @@ function HardcoverApp:linkBook(book)
   if book.book_id and self.state.book_status.id then
     if new_settings.edition_id and new_settings.edition_id ~= self.state.book_status.edition_id then
       -- update edition
-      self.state.book_status = Api:updateUserBook(new_settings.book_id, self.state.book_status.status_id, self.state.book_status.privacy_setting_id, new_settings.edition_id) or {}
+      self.state.book_status = Api:updateUserBook(new_settings.book_id, self.state.book_status.status_id,
+        self.state.book_status.privacy_setting_id, new_settings.edition_id) or {}
     end
   end
 
   return true
 end
-
 
 function HardcoverApp:autolinkBook(book)
   if not book then
@@ -716,7 +796,7 @@ function HardcoverApp:autolinkBook(book)
 
   local linked = self:linkBook(book)
   if linked then
-    UIManager:show(Notification:new{
+    UIManager:show(Notification:new {
       text = _("Linked to: " .. book.title),
     })
   end
@@ -728,7 +808,12 @@ function HardcoverApp:linkBookByIsbn()
   local identifiers = parseIdentifiers(props.identifiers)
   if identifiers.isbn_10 or identifiers.isbn_13 then
     local user_id = self:getUserId()
-    local book_lookup = Api:findBookByIdentifiers({ isbn_10 = identifiers.isbn_10, isbn_13 = identifiers.isbn_13 }, user_id)
+    local book_lookup = Api:findBookByIdentifiers({
+        isbn_10 = identifiers.isbn_10,
+        isbn_13 = identifiers.isbn_13
+      },
+      user_id
+    )
     if book_lookup then
       self:autolinkBook(book_lookup)
       return true
@@ -742,7 +827,8 @@ function HardcoverApp:linkBookByHardcover()
   local identifiers = parseIdentifiers(props.identifiers)
   if identifiers.book_slug or identifiers.edition_id then
     local user_id = self:getUserId()
-    local book_lookup = Api:findBookByIdentifiers({ book_slug = identifiers.book_slug, edition_id = identifiers.edition_id }, user_id)
+    local book_lookup = Api:findBookByIdentifiers(
+      { book_slug = identifiers.book_slug, edition_id = identifiers.edition_id }, user_id)
     if book_lookup then
       self:autolinkBook(book_lookup)
       return true
@@ -761,7 +847,8 @@ function HardcoverApp:linkBookByTitle()
 end
 
 function HardcoverApp:clearLink()
-  self:_updateBookSetting(self.ui.document.file, { _delete = { 'book_id', 'edition_id', 'edition_format', 'pages', 'title' }})
+  self:_updateBookSetting(self.ui.document.file,
+    { _delete = { 'book_id', 'edition_id', 'edition_format', 'pages', 'title' } })
   self:registerHighlight()
 end
 
@@ -776,19 +863,18 @@ function HardcoverApp:getUserId()
   return user_id
 end
 
-
 function HardcoverApp:addToMainMenu(menu_items)
   if not self.view then
     return
   end
 
   menu_items.hardcover = {
-    --sorting_hint = "navi",
-    --reader = true,
     text_func = function()
-      return self:bookLinked() and _("Hardcover: \u{F0C1}") or _("Hardcover") -- F127 -> broken link F0C1 link
+      return self:bookLinked() and _("Hardcover: " .. ICON_LINK) or _("Hardcover")
     end,
-    sub_item_table_func = function() return self:getSubMenuItems() end,
+    sub_item_table_func = function()
+      return self:getSubMenuItems()
+    end,
   }
 end
 
@@ -818,7 +904,9 @@ function HardcoverApp:findBookOptions(force_search)
 end
 
 function HardcoverApp:buildDialog(title, items, active_item, book_callback, search_callback, search)
-  book_callback = book_callback or function(book) self:linkBook(book) end
+  book_callback = book_callback or function(book)
+    self:linkBook(book)
+  end
 
   local callback = function(book)
     self.search_dialog:onClose()
@@ -866,8 +954,8 @@ function HardcoverApp:cachePageMap()
   local real_page = 1
   local last_page = 1
 
-  for _,v in ipairs(page_map) do
-    for i=last_page, v.page, 1 do
+  for _, v in ipairs(page_map) do
+    for i = last_page, v.page, 1 do
       lookup[i] = real_page
     end
 
@@ -945,7 +1033,9 @@ function HardcoverApp:getSubMenuItems()
           books,
           { book_id = self:getLinkedBookId() },
           nil,
-          function(search) return self:updateSearchResults(search) end,
+          function(search)
+            return self:updateSearchResults(search)
+          end,
           search_value
         )
 
@@ -1005,7 +1095,9 @@ function HardcoverApp:getSubMenuItems()
     },
     {
       text = _("Settings"),
-      sub_item_table_func = function() return self:getSettingsSubMenuItems() end,
+      sub_item_table_func = function()
+        return self:getSettingsSubMenuItems()
+      end,
     },
     {
       text = _("About"),
@@ -1018,7 +1110,7 @@ function HardcoverApp:getSubMenuItems()
         end
         local settings_file = DataStorage:getSettingsDir() .. "/" .. "hardcoversync_settings.lua"
 
-        UIManager:show(InfoMessage:new{
+        UIManager:show(InfoMessage:new {
           text = [[
 Hardcover plugin
 v]] .. version .. new_release_str .. [[
@@ -1175,7 +1267,7 @@ function HardcoverApp:getStatusSubMenuItems()
         local current_page = current_read and current_read.progress_pages or 0
         local max_pages = self:pages()
 
-        local spinner = SpinWidget:new{
+        local spinner = SpinWidget:new {
           value = current_page,
           value_min = 0,
           value_max = max_pages,
@@ -1188,10 +1280,12 @@ function HardcoverApp:getStatusSubMenuItems()
             local result
 
             if current_read then
-              result = Api:updatePage(current_read.id, current_read.edition_id, page, current_read.started_at)
+              result = Api:updatePage(current_read.id, current_read.edition_id, page,
+                current_read.started_at)
             else
               local start_date = os.date("%Y-%m-%d")
-              result = Api:createRead(self.state.book_status.id, self.state.book_status.edition_id, page, start_date)
+              result = Api:createRead(self.state.book_status.id, self.state.book_status.edition_id, page,
+                start_date)
             end
 
             if result then
@@ -1217,7 +1311,8 @@ function HardcoverApp:getStatusSubMenuItems()
         local current_page = current_read and current_read.progress_pages or 0
 
         -- allow premapped page
-        self:journalEntryForm("", current_page, self.ui.document:getPageCount(), self:pages(), current_page,"note")
+        self:journalEntryForm("", current_page, self.ui.document:getPageCount(), self:pages(), current_page,
+          "note")
       end,
       keep_menu_open = true
     },
@@ -1244,7 +1339,7 @@ function HardcoverApp:getStatusSubMenuItems()
       callback = function(menu_instance)
         local rating = self.state.book_status.rating
 
-        local spinner = SpinWidget:new{
+        local spinner = SpinWidget:new {
           ok_always_enabled = rating == nil,
           value = rating or 2.5,
           value_min = 0,
@@ -1307,6 +1402,83 @@ function HardcoverApp:tryAutolink()
   end
 end
 
+function HardcoverApp:getTrackingSubMenuItems()
+  return {
+    {
+      text = "Update periodically",
+      radio = true,
+      checked_func = function()
+        return self:trackByTime()
+      end,
+      callback = function()
+        self:setTrackMethod(TRACK_FREQUENCY)
+      end
+    },
+    {
+      text_func = function()
+        return "Every " .. self:trackFrequency() .. " minutes"
+      end,
+      enabled_func = function()
+        return self:trackByTime()
+      end,
+      callback = function(menu_instance)
+        local spinner = SpinWidget:new {
+          value = self:trackFrequency(),
+          value_min = 1,
+          value_max = 120,
+          value_step = 1,
+          value_hold_step = 6,
+          ok_text = _("Save"),
+          title_text = _("Set track frequency"),
+          callback = function(spin)
+            self:changeTrackFrequency(spin.value)
+            menu_instance:updateItems()
+          end
+        }
+
+        UIManager:show(spinner)
+      end,
+      keep_menu_open = true
+    },
+    {
+      text = "Update by progress",
+      radio = true,
+      checked_func = function()
+        return self:trackByProgress()
+      end,
+      callback = function()
+        self:setTrackMethod(TRACK_PROGRESS)
+      end
+    },
+    {
+      text_func = function()
+        return "Every " .. self:trackPercentageInterval() .. " percent completed"
+      end,
+      enabled_func = function()
+        return self:trackByProgress()
+      end,
+      callback = function(menu_instance)
+        local spinner = SpinWidget:new {
+          value = self:trackPercentageInterval(),
+          value_min = 1,
+          value_max = 50,
+          value_step = 1,
+          value_hold_step = 10,
+          ok_text = _("Save"),
+          title_text = _("Set track progress"),
+          callback = function(spin)
+            self:changeTrackPercentageInterval(spin.value)
+            menu_instance:updateItems()
+          end
+        }
+
+        UIManager:show(spinner)
+      end,
+      keep_menu_open = true
+    },
+  }
+end
+
 function HardcoverApp:getSettingsSubMenuItems()
   return {
     {
@@ -1354,26 +1526,11 @@ function HardcoverApp:getSettingsSubMenuItems()
     },
     {
       text_func = function()
-        return "Track progress frequency: " .. self:trackFrequency() .. "min"
+        return "Track progress settings: " .. ""
       end,
-      callback = function(menu_instance)
-        local spinner = SpinWidget:new{
-          value = self:trackFrequency(),
-          value_min = 1,
-          value_max = 120,
-          value_step = 1,
-          value_hold_step = 6,
-          ok_text = _("Save"),
-          title_text = _("Set track progress"),
-          callback = function(spin)
-            self:changeTrackFrequency(spin.value)
-            menu_instance:updateItems()
-          end
-        }
-
-        UIManager:show(spinner)
+      sub_item_table_func = function()
+        return self:getTrackingSubMenuItems()
       end,
-      keep_menu_open = true
     },
     {
       text = "Always track progress by default",
@@ -1395,7 +1552,7 @@ function HardcoverApp:getSettingsSubMenuItems()
         self:_updateSetting(SETTING_COMPATIBILITY_MODE, not setting)
       end,
       hold_callback = function()
-        UIManager:show(InfoMessage:new{
+        UIManager:show(InfoMessage:new {
           text = [[Disable fancy menu for book and edition search results.
 
 May improve compatibility for some versions of KOReader]],
