@@ -318,7 +318,7 @@ function HardcoverApp:onEndOfBook()
     local action = G_reader_settings:readSetting("end_document_action") or "pop-up"
     mark_read = action == "mark_read"
 
-    if action == popup then
+    if action == "pop-up" then
       mark_read = 'later'
     end
   end
