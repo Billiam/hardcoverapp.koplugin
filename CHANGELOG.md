@@ -2,8 +2,15 @@
 
 ## Unreleased
 
+### 🚀 Added
+
+* Added option to update books by percentage completed rather than timed updates
+
+### 🩹 Fixes
+
 * Fix crash when linking book from hardcover menu
 * Fix automatic book linking not working unless track progress (or always track progress) already set
+* Fix failure to mark book as read when end of book action displays a dialog
 
 ## 0.0.6 (2024-12-10)
 
