@@ -5,7 +5,7 @@ local GestureRange = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local InputDialog = require("ui/widget/inputdialog")
 local Menu = require("ui/widget/menu")
-local SearchMenu = require("searchmenu")
+local SearchMenu = require("lib/ui/search_menu")
 local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
@@ -42,12 +42,12 @@ function HardcoverSearchDialog:createListItem(book, active_item)
   end
 
   if book.release_year then
-    title = title .. " (" .. book.release_year  .. ")"
+    title = title .. " (" .. book.release_year .. ")"
   end
 
   if book.users_count then
     info = book.users_count .. " readers"
-  elseif  book.users_read_count then
+  elseif book.users_read_count then
     info = book.users_read_count .. " reads"
   end
 
@@ -148,7 +148,7 @@ function HardcoverSearchDialog:init()
 
   self.items = nil
 
-  self.container = CenterContainer:new{
+  self.container = CenterContainer:new {
     dimen = Screen:getSize(),
     self.menu,
   }
@@ -160,11 +160,11 @@ end
 
 function HardcoverSearchDialog:search()
   local search_dialog
-  search_dialog = InputDialog:new{
+  search_dialog = InputDialog:new {
     title = "New search",
     input = self.search_value,
     save_button_text = "Search",
-    buttons = {{
+    buttons = { {
       {
         text = _("Cancel"),
         callback = function()
@@ -184,7 +184,7 @@ function HardcoverSearchDialog:search()
           end
         end,
       }
-    }}
+    } }
   }
 
   UIManager:show(search_dialog)
@@ -224,7 +224,7 @@ function HardcoverSearchDialog:setItems(title, items, active_item)
   self.menu._covermenu_onclose_done = false
   local new_item_table = self:parseItems(items, active_item)
   if self.menu.item_table then
-    for _,v in ipairs(self.menu.item_table) do
+    for _, v in ipairs(self.menu.item_table) do
       if v.cover_bb then
         v.cover_bb:free()
       end

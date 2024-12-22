@@ -3,7 +3,7 @@ local logger = require("logger")
 local https = require("ssl.https")
 local ltn12 = require("ltn12")
 local json = require("json")
-local _t = require("table_util")
+local _t = require("lib/table_util")
 local Trapper = require("ui/trapper")
 local NetworkManager = require("ui/network/manager")
 local socketutil = require("socketutil")
@@ -31,12 +31,7 @@ fragment BookParts on books {
       name
     }
   }
-  contributions {
-    author {
-      name
-      alternate_names
-    }
-  }
+  contributors: cached_contributors
   cached_image
   user_books(where: { user_id: { _eq: $userId }}) {
     id
@@ -76,11 +71,6 @@ fragment UserBookParts on user_books {
   }
 }]]
 
--- TODO: Remove when search API ready
-function escapeLike(str)
-  return str:gsub("%%", "\\%%"):gsub("_", "\\_")
-end
-
 function HardcoverApi:me()
   local result = self:query([[{
     me {
@@ -109,7 +99,6 @@ function HardcoverApi:query(query, parameters)
   if completed and content then
     local code, response = string.match(content, "^([^:]*):(.*)")
     if string.find(code, "^2%d%d") then
-
       local data = json.decode(response, json.decode.simple)
       if data.data then
         return data.data
@@ -144,14 +133,14 @@ function HardcoverApi:_query(query, parameters)
     sink = socketutil.table_sink(sink),
   }
 
-  local _, code, headers, status = https.request(request)
+  local _, code, _headers, _status = https.request(request)
   socketutil:reset_timeout()
 
   local content = table.concat(sink) -- empty or content accumulated till now
   --logger.warn(requestBody)
   if code == socketutil.TIMEOUT_CODE or
-    code == socketutil.SSL_HANDSHAKE_CODE or
-    code == socketutil.SINK_TIMEOUT_CODE
+      code == socketutil.SSL_HANDSHAKE_CODE or
+      code == socketutil.SINK_TIMEOUT_CODE
   then
     logger.warn("request interrupted:", code)
     return code .. ':'
@@ -263,6 +252,9 @@ function HardcoverApi:findEditions(book_id, user_id)
     ]]
 
     local read_editions = self:query(read_search, { ids = edition_ids, userId = user_id })
+    if not read_editions then
+      return nil
+    end
     local read_index = {}
     for _, read in ipairs(read_editions) do
       read_index[read.edition_id] = true
@@ -281,7 +273,6 @@ function HardcoverApi:findEditions(book_id, user_id)
         return a.users_count > b.users_count
       end
     end)
-
   end
 
   local mapped_results = {}

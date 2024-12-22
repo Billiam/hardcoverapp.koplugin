@@ -12,7 +12,7 @@ local throttle = function(seconds, action)
 
   local execute = function()
     previous_execute_at = time:now()
-    result = action(unpack(args, 1, args.n))
+    result = action(table.unpack(args, 1, args.n))
 
     is_scheduled = true
     UIManager:scheduleIn(seconds, scheduled_action)

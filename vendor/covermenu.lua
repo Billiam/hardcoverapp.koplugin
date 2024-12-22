@@ -5,7 +5,7 @@ local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
 local logger = require("logger")
 local _ = require("gettext")
-local ImageLoader = require("image_loader")
+local ImageLoader = require("lib/ui/image_loader")
 local RenderImage = require("ui/renderimage")
 
 local BookInfoManager = require("bookinfomanager")
@@ -145,7 +145,7 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
   self.show_parent.dithered = self._has_cover_images
   UIManager:setDirty(self.show_parent, function()
     local refresh_dimen =
-    old_dimen and old_dimen:combine(self.dimen)
+        old_dimen and old_dimen:combine(self.dimen)
         or self.dimen
     return "ui", refresh_dimen, self.show_parent.dithered
   end)
@@ -159,12 +159,12 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
   if #self.items_to_update > 0 then
     local images = {}
     local items_by_cover_url = {}
-    for i=1, #self.items_to_update do
+    for i = 1, #self.items_to_update do
       local item = self.items_to_update[i]
       if item.lazy_load_cover then
         table.insert(images, item.entry.cover_url)
         if not items_by_cover_url[item.entry.cover_url] then
-          items_by_cover_url[item.entry.cover_url] = {item}
+          items_by_cover_url[item.entry.cover_url] = { item }
         else
           table.insert(items_by_cover_url[item.entry.cover_url], item)
         end
@@ -175,7 +175,7 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
     if #images > 0 then
       UIManager:scheduleIn(1, function()
         image_batch, self.halt_image_loading = ImageLoader:loadImages(images, function(url, content)
-          for _,item in ipairs(items_by_cover_url[url]) do
+          for _, item in ipairs(items_by_cover_url[url]) do
             item.entry.lazy_load_cover = false
             item.entry.has_cover = true
 
@@ -213,9 +213,9 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
   -- we replace it by ours.
   -- (FileManager may replace file_chooser.showFileDialog after we've been called once, so we need
   -- to replace it again if it is not ours)
-  if self.path -- FileManager only
-      and (not self.showFileDialog_ours -- never replaced
-      or self.showFileDialog ~= self.showFileDialog_ours) then -- it is no more ours
+  if self.path                                                   -- FileManager only
+      and (not self.showFileDialog_ours                          -- never replaced
+        or self.showFileDialog ~= self.showFileDialog_ours) then -- it is no more ours
     -- We need to do it at nextTick, once FileManager has instantiated
     -- its FileChooser completely
     UIManager:nextTick(function()
@@ -286,7 +286,7 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
         })
 
         -- Create the new ButtonDialog, and let UIManager show it
-        self.file_dialog = ButtonDialog:new{
+        self.file_dialog = ButtonDialog:new {
           title = orig_title,
           title_align = orig_title_align,
           buttons = orig_buttons,
@@ -363,7 +363,7 @@ function CoverMenu:onHistoryMenuHold(item)
   })
 
   -- Create the new ButtonDialog, and let UIManager show it
-  self.histfile_dialog = ButtonDialog:new{
+  self.histfile_dialog = ButtonDialog:new {
     title = orig_title,
     title_align = orig_title_align,
     buttons = orig_buttons,
@@ -434,7 +434,7 @@ function CoverMenu:onCollectionsMenuHold(item)
   })
 
   -- Create the new ButtonDialog, and let UIManager show it
-  self.collfile_dialog = ButtonDialog:new{
+  self.collfile_dialog = ButtonDialog:new {
     title = orig_title,
     title_align = orig_title_align,
     buttons = orig_buttons,
@@ -456,14 +456,14 @@ function CoverMenu:onCloseWidget()
   logger.dbg("CoverMenu:onCloseWidget: terminating jobs if needed")
   BookInfoManager:terminateBackgroundJobs()
   BookInfoManager:closeDbConnection() -- sqlite connection no more needed
-  BookInfoManager:cleanUp() -- clean temporary resources
+  BookInfoManager:cleanUp()           -- clean temporary resources
 
   -- Cancel any still scheduled update
   if self.halt_image_loading then
     self.halt_image_loading()
   end
 
-  for _,v in ipairs(self.item_table) do
+  for _, v in ipairs(self.item_table) do
     if v.cover_bb then
       v.cover_bb:free()
     end
@@ -518,7 +518,7 @@ function CoverMenu:tapPlus()
   })
 
   -- Create the new ButtonDialog, and let UIManager show it
-  self.file_dialog = ButtonDialog:new{
+  self.file_dialog = ButtonDialog:new {
     title = orig_title,
     title_align = orig_title_align,
     buttons = orig_buttons,
