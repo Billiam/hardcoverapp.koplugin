@@ -38,7 +38,7 @@ local JournalDialog = InputDialog:extend {
 local function comma_split(text)
   local result = {}
   for str in string.gmatch(text, "([^,]+)") do
-    local trimmed = str:match( "^%s*(.-)%s*$")
+    local trimmed = str:match("^%s*(.-)%s*$")
     if trimmed ~= "" then
       table.insert(result, trimmed)
     end
@@ -50,7 +50,7 @@ end
 function JournalDialog:init()
   self:setModified()
 
-  local text_widget = TextBoxWidget:new{
+  local text_widget = TextBoxWidget:new {
     text = "I\n\nj",
     face = Font:getFace("smallinfofont"),
     for_measurement_only = true,
@@ -75,13 +75,13 @@ function JournalDialog:init()
   self.note_input = self._input_widget
 
   local journal_type
-  journal_type = ToggleSwitch:new{
+  journal_type = ToggleSwitch:new {
     width = self.width - 30,
     margin = 10,
     margin_bottom = 20,
     alternate = false,
 
-    toggle = { _("Note"), _("Quote")},
+    toggle = { _("Note"), _("Quote") },
     values = { JOURNAL_NOTE, JOURNAL_QUOTE },
     config = self,
     callback = function(position)
@@ -96,7 +96,7 @@ function JournalDialog:init()
   }
 
   local privacy_switch
-  privacy_switch = ToggleSwitch:new{
+  privacy_switch = ToggleSwitch:new {
     width = self.width - 40 - privacy_label:getWidth(),
     toggle = { _("Public"), _("Follows"), _("Private") },
     values = { 1, 2, 3 },
@@ -108,15 +108,15 @@ function JournalDialog:init()
   }
   privacy_switch:setPosition(self.privacy_setting_id)
 
-  local privacy_row = HorizontalGroup:new{
+  local privacy_row = HorizontalGroup:new {
     privacy_label,
-    HorizontalSpan:new{
+    HorizontalSpan:new {
       width = 10
     },
     privacy_switch
   }
 
-  self.tag_field = InputText:new{
+  self.tag_field = InputText:new {
     width = self.width - Size.padding.default - Size.border.inputtext - 30,
     input = table.concat(self.tags, ", "),
     focused = false,
@@ -125,7 +125,7 @@ function JournalDialog:init()
     hint = _("Tags (comma separated)"),
     face = Font:getFace("cfont", 16),
   }
-  self.hidden_tag_field = InputText:new{
+  self.hidden_tag_field = InputText:new {
     width = self.width - Size.padding.default - Size.border.inputtext - 30,
     input = table.concat(self.hidden_tags, ", "),
     focused = false,
@@ -140,11 +140,11 @@ function JournalDialog:init()
     text_func = function()
       return _("page " .. self.page .. " of " .. self.pages)
     end,
-    width =  (self.width - 10 - 30)/2,
+    width = (self.width - 10 - 30) / 2,
     text_font_size = 16,
     bordersize = Size.border.thin,
     callback = function()
-      local spinner = SpinWidget:new{
+      local spinner = SpinWidget:new {
         value = self.page,
         value_min = 0,
         value_max = self.pages,
@@ -162,12 +162,12 @@ function JournalDialog:init()
     end
   }
 
-  self.edition_button = Button:new{
+  self.edition_button = Button:new {
     text = "edition",
     text_func = function()
       return self.edition_format or "physical book"
     end,
-    width = (self.width - 10 - 30)/2,
+    width = (self.width - 10 - 30) / 2,
     text_font_size = 16,
     bordersize = Size.border.thin,
     callback = self.select_edition_callback
@@ -177,9 +177,9 @@ function JournalDialog:init()
     padding_top = 10,
     padding_bottom = 8,
     bordersize = 0,
-    HorizontalGroup:new{
+    HorizontalGroup:new {
       self.edition_button,
-      HorizontalSpan:new{
+      HorizontalSpan:new {
         width = 10
       },
       self.page_button
