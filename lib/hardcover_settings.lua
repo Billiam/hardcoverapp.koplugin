@@ -14,14 +14,14 @@ function HardcoverSettings:new(path)
 
   if KoreaderVersion:getNormalizedCurrentVersion() < 202403010000 then
     if self.settings:readSetting(SETTING.COMPATIBILITY_MODE) == nil then
-      self:_updateSetting(SETTING.COMPATIBILITY_MODE, true)
+      self:updateSetting(SETTING.COMPATIBILITY_MODE, true)
     end
   end
 
   return o
 end
 
-function HardcoverSettings:_readBookSettings(filename)
+function HardcoverSettings:readBookSettings(filename)
   local books = self.settings:readSetting("books")
   if not books then
     return {}
@@ -30,8 +30,8 @@ function HardcoverSettings:_readBookSettings(filename)
   return books[filename]
 end
 
-function HardcoverSettings:_readBookSetting(filename, key)
-  local settings = self:_readBookSettings(filename)
+function HardcoverSettings:readBookSetting(filename, key)
+  local settings = self:readBookSettings(filename)
   if settings then
     return settings[key]
   end
@@ -59,7 +59,7 @@ function HardcoverSettings:_updateBookSetting(filename, config)
   self:notify(SETTING.BOOKS, { filename = filename, config = config })
 end
 
-function HardcoverSettings:_updateSetting(key, value)
+function HardcoverSettings:updateSetting(key, value)
   self.settings:saveSetting(key, value)
   self.settings:flush()
 
@@ -91,7 +91,7 @@ function HardcoverSettings:setSync(value)
 end
 
 function HardcoverSettings:setTrackMethod(method)
-  self:_updateSetting(SETTING.TRACK_METHOD, method)
+  self:updateSetting(SETTING.TRACK_METHOD, method)
 end
 
 function HardcoverSettings:editionLinked()
@@ -99,7 +99,7 @@ function HardcoverSettings:editionLinked()
 end
 
 function HardcoverSettings:readLinked()
-  return self:_readBookSetting(self.ui.document.file, "read_id") ~= nil
+  return self:readBookSetting(self.ui.document.file, "read_id") ~= nil
 end
 
 function HardcoverSettings:bookLinked()
@@ -107,23 +107,23 @@ function HardcoverSettings:bookLinked()
 end
 
 function HardcoverSettings:getLinkedTitle()
-  return self:_readBookSetting(self.ui.document.file, "title")
+  return self:readBookSetting(self.ui.document.file, "title")
 end
 
 function HardcoverSettings:getLinkedBookId()
-  return self:_readBookSetting(self.ui.document.file, "book_id")
+  return self:readBookSetting(self.ui.document.file, "book_id")
 end
 
 function HardcoverSettings:getLinkedEditionFormat()
-  return self:_readBookSetting(self.ui.document.file, "edition_format")
+  return self:readBookSetting(self.ui.document.file, "edition_format")
 end
 
 function HardcoverSettings:getLinkedEditionId()
-  return self:_readBookSetting(self.ui.document.file, "edition_id")
+  return self:readBookSetting(self.ui.document.file, "edition_id")
 end
 
 function HardcoverSettings:syncEnabled()
-  local sync_value = self:_readBookSetting(self.ui.document.file, "sync")
+  local sync_value = self:readBookSetting(self.ui.document.file, "sync")
   if sync_value == nil then
     sync_value = self.settings:readSetting(SETTING.ALWAYS_SYNC)
   end
@@ -141,7 +141,7 @@ function HardcoverSettings:autolinkEnabled()
 end
 
 function HardcoverSettings:pages()
-  return self:_readBookSetting(self.ui.document.file, "pages")
+  return self:readBookSetting(self.ui.document.file, "pages")
 end
 
 function HardcoverSettings:trackFrequency()
@@ -162,7 +162,7 @@ function HardcoverSettings:trackByProgress()
 end
 
 function HardcoverSettings:changeTrackPercentageInterval(percent)
-  self:_updateSetting(SETTING.TRACK_PERCENTAGE, percent)
+  self:updateSetting(SETTING.TRACK_PERCENTAGE, percent)
 end
 
 function HardcoverSettings:compatibilityMode()
