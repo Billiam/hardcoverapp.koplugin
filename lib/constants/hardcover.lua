@@ -10,6 +10,9 @@ local Hardcover = {
     FOLLOWS = 2,
     PRIVATE = 3,
   },
+  CATEGORY = {
+    TAG = "Tag",
+  }
 }
 
 return Hardcover
