@@ -35,7 +35,7 @@ function Batch:loadImages(urls)
 
   self.loading = true
 
-  local url_queue = { unpack(urls) }
+  local url_queue = { table.unpack(urls) }
   local run_image
   local stop_loading = false
 
@@ -82,7 +82,7 @@ end
 function ImageLoader:loadImages(urls, callback)
   local batch = Batch:new()
   batch.callback = callback
-  local halt = batch:loadImages(urls, callback)
+  local halt = batch:loadImages(urls)
   return batch, halt
 end
 
