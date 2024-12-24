@@ -1,0 +1,579 @@
+local DataStorage = require("datastorage")
+local _ = require("gettext")
+local math = require("math")
+local os = require("os")
+local logger = require("logger")
+
+local T = require("ffi/util").template
+
+local Font = require("ui/font")
+local UIManager = require("ui/uimanager")
+
+local InfoMessage = require("ui/widget/infomessage")
+local SpinWidget = require("ui/widget/spinwidget")
+
+local Api = require("lib/hardcover_api")
+local Github = require("lib/github")
+local User = require("lib/user")
+
+local HARDCOVER = require("lib/constants/hardcover")
+local ICON = require("lib/constants/icons")
+local SETTING = require("lib/constants/settings")
+local VERSION = require("hardcover_version")
+
+local HardcoverMenu = {}
+HardcoverMenu.__index = HardcoverMenu
+
+function HardcoverMenu:new(o)
+  return setmetatable(o or {}, self)
+end
+
+local privacy_labels = {
+  [HARDCOVER.PRIVACY.PUBLIC] = "Public",
+  [HARDCOVER.PRIVACY.FOLLOWS] = "Follows",
+  [HARDCOVER.PRIVACY.PRIVATE] = "Private"
+}
+
+function HardcoverMenu:mainMenu()
+  return {
+    text_func = function()
+      return self.settings:bookLinked() and _("Hardcover: " .. ICON.LINK) or _("Hardcover")
+    end,
+    sub_item_table_func = function()
+      return self:getSubMenuItems()
+    end,
+  }
+end
+
+function HardcoverMenu:getSubMenuItems()
+  return {
+    {
+      text_func = function()
+        if self.settings:bookLinked() then
+          -- need to show link information somehow. Maybe store title
+          local title = self.settings:getLinkedTitle()
+          if not title then
+            title = self.settings:getLinkedBookId()
+          end
+          return _("Linked book: " .. title)
+        else
+          return _("Link book")
+        end
+      end,
+      hold_callback = function(menu_instance)
+        if self.settings:bookLinked() then
+          self.settings:updateBookSetting(
+            self.ui.document.file,
+            {
+              _delete = { 'book_id', 'edition_id', 'edition_format', 'pages', 'title' }
+            }
+          )
+
+          menu_instance:updateItems()
+        end
+      end,
+      keep_menu_open = true,
+      callback = function(menu_instance)
+        local force_search = self.settings:bookLinked()
+        local search_value, books = self.hardcover:findBookOptions(force_search)
+
+        self.dialog_manager:buildSearchDialog(
+          "Select book",
+          books,
+          {
+            book_id = self.settings:getLinkedBookId()
+          },
+          function(book)
+            self.hardcover:linkBook(book)
+            menu_instance:updateItems()
+          end,
+          function(search)
+            self.dialog_manager:updateSearchResults(search)
+          end,
+          search_value
+        )
+      end,
+    },
+    {
+      text_func = function()
+        local edition_format = self.settings:getLinkedEditionFormat()
+        local title = "Change edition"
+
+        if edition_format then
+          title = title .. ": " .. edition_format
+        elseif self.settings:getLinkedEditionId() then
+          return title .. ": physical book"
+        end
+
+        return _(title)
+      end,
+      enabled_func = function()
+        return self.settings:bookLinked()
+      end,
+      callback = function(menu_instance)
+        local editions = Api:findEditions(self.settings:getLinkedBookId(), User:getId())
+        -- need to show "active" here, and prioritize current edition if available
+        self.dialog_manager:buildSearchDialog(
+          "Select edition",
+          editions,
+          {
+            edition_id = self.settings:getLinkedEditionId()
+          },
+          function(book)
+            menu_instance:updateItems()
+            self:linkBook(book)
+          end
+        )
+      end,
+      keep_menu_open = true,
+      separator = true
+    },
+    {
+      text = _("Automatically track progress"),
+      checked_func = function()
+        return self.settings:syncEnabled()
+      end,
+      enabled_func = function()
+        return self.settings:bookLinked()
+      end,
+      callback = function()
+        local sync = not self.settings:syncEnabled()
+        self.settings:setSync(sync)
+      end,
+    },
+    {
+      text = _("Update status"),
+      enabled_func = function()
+        return self.settings:bookLinked()
+      end,
+      sub_item_table_func = function()
+        self.cache:cacheUserBook()
+
+        return self:getStatusSubMenuItems()
+      end,
+      separator = true
+    },
+    {
+      text = _("Settings"),
+      sub_item_table_func = function()
+        return self:getSettingsSubMenuItems()
+      end,
+    },
+    {
+      text = _("About"),
+      callback = function()
+        -- FIXME: No new release
+        local new_release = Github:newestRelease()
+        local version = table.concat(VERSION, ".")
+        local new_release_str = ""
+        if new_release then
+          new_release_str = " (latest v" .. new_release .. ")"
+        end
+        local settings_file = DataStorage:getSettingsDir() .. "/" .. "hardcoversync_settings.lua"
+
+        UIManager:show(InfoMessage:new {
+          text = [[
+Hardcover plugin
+v]] .. version .. new_release_str .. [[
+
+
+Updates book progress and status on Hardcover.app
+
+Project:
+github.com/billiam/hardcoverapp.koplugin
+
+Settings:
+]] .. settings_file,
+          face = Font:getFace("cfont", 18),
+          show_icon = false,
+        })
+      end,
+      keep_menu_open = true
+    }
+  }
+end
+
+function HardcoverMenu:getVisibilitySubMenuItems()
+  return {
+    {
+      text = _(privacy_labels[HARDCOVER.PRIVACY.PUBLIC]),
+      checked_func = function()
+        return self.state.book_status.privacy_setting_id == HARDCOVER.PRIVACY.PUBLIC
+      end,
+      callback = function()
+        self.hardcover:changeBookVisibility(HARDCOVER.PRIVACY.PUBLIC)
+      end,
+      radio = true,
+    },
+    {
+      text = _(privacy_labels[HARDCOVER.PRIVACY.FOLLOWS]),
+      checked_func = function()
+        return self.state.book_status.privacy_setting_id == HARDCOVER.PRIVACY.FOLLOWS
+      end,
+      callback = function()
+        self.hardcover:changeBookVisibility(HARDCOVER.PRIVACY.FOLLOWS)
+      end,
+      radio = true
+    },
+    {
+      text = _(privacy_labels[HARDCOVER.PRIVACY.PRIVATE]),
+      checked_func = function()
+        return self.state.book_status.privacy_setting_id == HARDCOVER.PRIVACY.PRIVATE
+      end,
+      callback = function()
+        self.hardcover:changeBookVisibility(HARDCOVER.PRIVACY.PRIVATE)
+      end,
+      radio = true
+    },
+  }
+end
+
+function HardcoverMenu:getStatusSubMenuItems()
+  return {
+    {
+      text = _(ICON.BOOKMARK .. " Want To Read"),
+      checked_func = function()
+        return self.state.book_status.status_id == HARDCOVER.STATUS.TO_READ
+      end,
+      callback = function()
+        self.cache:updateBookStatus(self.ui.document.file, HARDCOVER.STATUS.TO_READ)
+      end,
+      radio = true
+    },
+    {
+      text = _(ICON.OPEN_BOOK .. " Currently Reading"),
+      checked_func = function()
+        return self.state.book_status.status_id == HARDCOVER.STATUS.READING
+      end,
+      callback = function()
+        self.cache:updateBookStatus(self.ui.document.file, HARDCOVER.STATUS.READING)
+      end,
+      radio = true
+    },
+    {
+      text = _(ICON.CHECKMARK .. " Read"),
+      checked_func = function()
+        return self.state.book_status.status_id == HARDCOVER.STATUS.FINISHED
+      end,
+      callback = function()
+        self.cache:updateBookStatus(self.ui.document.file, HARDCOVER.STATUS.FINISHED)
+      end,
+      radio = true
+    },
+    {
+      text = _(ICON.STOP_CIRCLE .. " Did Not Finish"),
+      checked_func = function()
+        return self.state.book_status.status_id == HARDCOVER.STATUS.DNF
+      end,
+      callback = function()
+        self.cache:updateBookStatus(self.ui.document.file, HARDCOVER.STATUS.DNF)
+      end,
+      radio = true,
+    },
+    {
+      text = _(ICON.TRASH .. " Remove"),
+      enabled_func = function()
+        return self.state.book_status.status_id ~= nil
+      end,
+      callback = function(menu_instance)
+        local result = Api:removeRead(self.state.book_status.id)
+        if result and result.id then
+          self.state.book_status = {}
+          menu_instance:updateItems()
+        end
+      end,
+      keep_menu_open = true,
+      separator = true
+    },
+    {
+      text_func = function()
+        local reads = self.state.book_status.user_book_reads
+        local current_page = reads and reads[#reads] and reads[#reads].progress_pages or 0
+        local max_pages = self.settings:pages()
+
+        if not max_pages then
+          max_pages = "???"
+        end
+
+        return T(_("Update page: %1 of %2"), current_page, max_pages)
+      end,
+      enabled_func = function()
+        return self.state.book_status.status_id == HARDCOVER.STATUS.READING and self.settings:pages()
+      end,
+      callback = function(menu_instance)
+        local reads = self.state.book_status.user_book_reads
+        local current_read = reads and reads[#reads]
+        local current_page = current_read and current_read.progress_pages or 0
+        local max_pages = self.settings:pages()
+
+        local spinner = SpinWidget:new {
+          value = current_page,
+          value_min = 0,
+          value_max = max_pages,
+          value_step = 1,
+          value_hold_step = 20,
+          ok_text = _("Set page"),
+          title_text = _("Set current page"),
+          callback = function(spin)
+            local page = spin.value
+            local result
+
+            if current_read then
+              result = Api:updatePage(current_read.id, current_read.edition_id, page,
+                current_read.started_at)
+            else
+              local start_date = os.date("%Y-%m-%d")
+              result = Api:createRead(self.state.book_status.id, self.state.book_status.edition_id, page,
+                start_date)
+            end
+
+            if result then
+              self.state.book_status = result
+              menu_instance:updateItems()
+            else
+
+            end
+          end
+        }
+        UIManager:show(spinner)
+      end,
+      keep_menu_open = true
+    },
+    {
+      text = _("Add a note"),
+      enabled_func = function()
+        return self.state.book_status.id ~= nil
+      end,
+      callback = function()
+        local reads = self.state.book_status.user_book_reads
+        local current_read = reads and reads[#reads]
+        local current_page = current_read and current_read.progress_pages or 0
+
+        -- allow premapped page
+        self.dialog_manager:journalEntryForm(
+          "",
+          self.ui.document,
+          current_page,
+          self.settings:pages(),
+          current_page,
+          "note"
+        )
+      end,
+      keep_menu_open = true
+    },
+    {
+      text_func = function()
+        local text
+        if self.state.book_status.rating then
+          text = "Update rating"
+          local whole_star = math.floor(self.state.book_status.rating)
+          local star_string = string.rep(ICON.STAR, whole_star)
+          if self.state.book_status.rating - whole_star > 0 then
+            star_string = star_string .. ICON.HALF_STAR
+          end
+          text = text .. ": " .. star_string
+        else
+          text = "Set rating"
+        end
+
+        return _(text)
+      end,
+      enabled_func = function()
+        return self.state.book_status.id ~= nil
+      end,
+      callback = function(menu_instance)
+        local rating = self.state.book_status.rating
+
+        local spinner = SpinWidget:new {
+          ok_always_enabled = rating == nil,
+          value = rating or 2.5,
+          value_min = 0,
+          value_max = 5,
+          value_step = 0.5,
+          value_hold_step = 2,
+          precision = "%.1f",
+          ok_text = _("Save"),
+          title_text = _("Set Rating"),
+          callback = function(spin)
+            local result = Api:updateRating(self.state.book_status.id, spin.value)
+            if result then
+              self.state.book_status = result
+              menu_instance:updateItems()
+            else
+              self.dialog_magager:showError("Rating could not be saved")
+            end
+          end
+        }
+        UIManager:show(spinner)
+      end,
+      hold_callback = function(menu_instance)
+        local result = Api:updateRating(self.state.book_status.id, 0)
+        if result then
+          self.state.book_status = result
+          menu_instance:updateItems()
+        end
+      end,
+      keep_menu_open = true,
+      separator = true
+    },
+    {
+      text = _("Set status visibility"),
+      enabled_func = function()
+        return self.state.book_status.id ~= nil
+      end,
+      sub_item_table_func = function()
+        return self:getVisibilitySubMenuItems()
+      end,
+    },
+  }
+end
+
+function HardcoverMenu:getTrackingSubMenuItems()
+  return {
+    {
+      text = "Update periodically",
+      radio = true,
+      checked_func = function()
+        return self.settings:trackByTime()
+      end,
+      callback = function()
+        self.settings:setTrackMethod(SETTING.TRACK.FREQUENCY)
+      end
+    },
+    {
+      text_func = function()
+        return "Every " .. self.settings:trackFrequency() .. " minutes"
+      end,
+      enabled_func = function()
+        return self.settings:trackByTime()
+      end,
+      callback = function(menu_instance)
+        local spinner = SpinWidget:new {
+          value = self.settings:trackFrequency(),
+          value_min = 1,
+          value_max = 120,
+          value_step = 1,
+          value_hold_step = 6,
+          ok_text = _("Save"),
+          title_text = _("Set track frequency"),
+          callback = function(spin)
+            self.settings:updateSetting(SETTING.TRACK_FREQUENCY, spin.value)
+            menu_instance:updateItems()
+          end
+        }
+
+        UIManager:show(spinner)
+      end,
+      keep_menu_open = true
+    },
+    {
+      text = "Update by progress",
+      radio = true,
+      checked_func = function()
+        return self.settings:trackByProgress()
+      end,
+      callback = function()
+        self.settings:setTrackMethod(SETTING.TRACK.PROGRESS)
+      end
+    },
+    {
+      text_func = function()
+        return "Every " .. self.settings:trackPercentageInterval() .. " percent completed"
+      end,
+      enabled_func = function()
+        return self.settings:trackByProgress()
+      end,
+      callback = function(menu_instance)
+        local spinner = SpinWidget:new {
+          value = self.settings:trackPercentageInterval(),
+          value_min = 1,
+          value_max = 50,
+          value_step = 1,
+          value_hold_step = 10,
+          ok_text = _("Save"),
+          title_text = _("Set track progress"),
+          callback = function(spin)
+            self.settings:changeTrackPercentageInterval(spin.value)
+            menu_instance:updateItems()
+          end
+        }
+
+        UIManager:show(spinner)
+      end,
+      keep_menu_open = true
+    },
+  }
+end
+
+function HardcoverMenu:getSettingsSubMenuItems()
+  return {
+    {
+      text = "Automatically link by ISBN",
+      checked_func = function()
+        return self.settings:readSetting(SETTING.LINK_BY_ISBN) == true
+      end,
+      callback = function()
+        local setting = self.settings:readSetting(SETTING.LINK_BY_ISBN) == true
+        self.settings:updateSetting(SETTING.LINK_BY_ISBN, not setting)
+      end
+    },
+    {
+      text = "Automatically link by Hardcover identifiers",
+      checked_func = function()
+        return self.settings:readSetting(SETTING.LINK_BY_HARDCOVER) == true
+      end,
+      callback = function()
+        local setting = self.settings:readSetting(SETTING.LINK_BY_HARDCOVER) == true
+        self.settings:updateSetting(SETTING.LINK_BY_HARDCOVER, not setting)
+      end
+    },
+    {
+      text = "Automatically link by title and author",
+      checked_func = function()
+        return self.settings:readSetting(SETTING.LINK_BY_TITLE) == true
+      end,
+      callback = function()
+        local setting = self.settings:readSetting(SETTING.LINK_BY_TITLE) == true
+        self.settings:updateSetting(SETTING.LINK_BY_TITLE, not setting)
+      end,
+      separator = true
+    },
+    {
+      text_func = function()
+        return "Track progress settings: " .. ""
+      end,
+      sub_item_table_func = function()
+        return self:getTrackingSubMenuItems()
+      end,
+    },
+    {
+      text = "Always track progress by default",
+      checked_func = function()
+        return self.settings:readSetting(SETTING.ALWAYS_SYNC) == true
+      end,
+      callback = function()
+        local setting = self.settings:readSetting(SETTING.ALWAYS_SYNC) == true
+        self.settings:updateSetting(SETTING.ALWAYS_SYNC, not setting)
+      end,
+    },
+    {
+      text = "Compatibility mode",
+      checked_func = function()
+        return self.settings:compatibilityMode()
+      end,
+      callback = function()
+        local setting = self.settings:compatibilityMode()
+        self.settings:updateSetting(SETTING.COMPATIBILITY_MODE, not setting)
+      end,
+      hold_callback = function()
+        UIManager:show(InfoMessage:new {
+          text = [[Disable fancy menu for book and edition search results.
+
+May improve compatibility for some versions of KOReader]],
+        })
+      end
+    }
+  }
+end
+
+return HardcoverMenu
