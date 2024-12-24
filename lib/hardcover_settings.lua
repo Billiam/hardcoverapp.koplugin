@@ -49,7 +49,7 @@ function HardcoverSettings:updateBookSetting(filename, config)
     books[filename] = {}
   end
   local book_setting = books[filename]
-
+  local original_value = { table.unpack(book_setting) }
   for k, v in pairs(config) do
     if k == "_delete" then
       for _, name in ipairs(v) do
@@ -62,19 +62,21 @@ function HardcoverSettings:updateBookSetting(filename, config)
 
   self.settings:flush()
 
-  self:notify(SETTING.BOOKS, { filename = filename, config = config })
+  self:notify(SETTING.BOOKS, { filename = filename, config = config }, original_value)
 end
 
 function HardcoverSettings:updateSetting(key, value)
+  local original_value = self.settings:readSetting(key)
   self.settings:saveSetting(key, value)
+
   self.settings:flush()
 
-  self:notify(key, value)
+  self:notify(key, value, original_value)
 end
 
-function HardcoverSettings:notify(key, value)
+function HardcoverSettings:notify(key, value, original_value)
   for _, cb in ipairs(self.subscribers) do
-    cb(key, value)
+    cb(key, value, original_value)
   end
 end
 
