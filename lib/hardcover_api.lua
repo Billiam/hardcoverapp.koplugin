@@ -15,8 +15,7 @@ local headers = {
   Authorization = "Bearer " .. config.token
 }
 
-local HardcoverApi = {
-}
+local HardcoverApi = {}
 
 local book_fragment = [[
 fragment BookParts on books {
@@ -31,7 +30,7 @@ fragment BookParts on books {
       name
     }
   }
-  contributors: cached_contributors
+  contributions: cached_contributors
   cached_image
   user_books(where: { user_id: { _eq: $userId }}) {
     id
