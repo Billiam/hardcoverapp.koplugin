@@ -14,13 +14,10 @@ local JournalDialog = require("lib/ui/journal_dialog")
 local SearchDialog = require("lib/ui/search_dialog")
 
 local DialogManager = {}
+DialogManager.__index = DialogManager
 
 function DialogManager:new(o)
-  o = o or {}
-  setmetatable(o, self)
-  o.__index = self
-
-  return o
+  return setmetatable(o or {}, self)
 end
 
 local function mapJournalData(data)
@@ -89,7 +86,7 @@ function DialogManager:updateSearchResults(search)
 end
 
 function DialogManager:journalEntryForm(text, document, page, remote_pages, mapped_page, event_type)
-  local settings = self.settings:_readBookSettings(document.file) or {}
+  local settings = self.settings:readBookSettings(document.file) or {}
   local edition_id = settings.edition_id
   local edition_format = settings.edition_format
 

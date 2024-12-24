@@ -18,12 +18,10 @@ local Batch = {
   url_map = {},
   callback = nil
 }
+Batch.__index = Batch
 
 function Batch:new(o)
-  o = o or {}   -- create object if user does not provide one
-  setmetatable(o, self)
-  self.__index = self
-  return o
+  return setmetatable(o or {}, self)
 end
 
 function Batch:data(url)
@@ -37,35 +35,33 @@ function Batch:loadImages(urls)
 
   self.loading = true
 
-  local url_queue = {unpack (urls)}
+  local url_queue = { unpack(urls) }
   local run_image
   local stop_loading = false
 
   run_image = function()
     Trapper:wrap(function()
+      if stop_loading then return end
 
-    if stop_loading then return end
+      local url = table.remove(url_queue, 1)
 
-    local url = table.remove(url_queue,1)
+      local completed, success, content = Trapper:dismissableRunInSubprocess(function()
+        return getUrlContent(url, 10, 30)
+      end)
 
-    local completed, success, content = Trapper:dismissableRunInSubprocess(function()
-      return getUrlContent(url, 10, 30)
-    end)
+      --if not completed then
+      --  logger.warn("Aborted")
+      --end
 
-    --if not completed then
-    --  logger.warn("Aborted")
-    --end
+      if completed and success then
+        self.callback(url, content)
+      end
 
-    if completed and success then
-      self.callback(url, content)
-    end
+      if #url_queue > 0 then
+        UIManager:scheduleIn(0.2, run_image)
+      end
 
-    if #url_queue > 0 then
-      UIManager:scheduleIn(0.2, run_image)
-    end
-
-    self.loading = false
-
+      self.loading = false
     end)
   end
 

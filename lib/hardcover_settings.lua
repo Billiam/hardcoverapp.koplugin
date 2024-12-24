@@ -4,13 +4,15 @@ local LuaSettings = require("luasettings")
 local SETTING = require("lib/constants/settings")
 
 local HardcoverSettings = {}
+HardcoverSettings.__index = HardcoverSettings
 
-function HardcoverSettings:new(path)
+function HardcoverSettings:new(path, ui)
   local o = {}
   setmetatable(o, self)
-  self.__index = self
 
   self.settings = LuaSettings:open(path)
+  self.ui = ui
+  self.subscribers = {}
 
   if KoreaderVersion:getNormalizedCurrentVersion() < 202403010000 then
     if self.settings:readSetting(SETTING.COMPATIBILITY_MODE) == nil then
@@ -19,6 +21,10 @@ function HardcoverSettings:new(path)
   end
 
   return o
+end
+
+function HardcoverSettings:readSetting(key)
+  return self.settings:readSetting(key)
 end
 
 function HardcoverSettings:readBookSettings(filename)
@@ -37,7 +43,7 @@ function HardcoverSettings:readBookSetting(filename, key)
   end
 end
 
-function HardcoverSettings:_updateBookSetting(filename, config)
+function HardcoverSettings:updateBookSetting(filename, config)
   local books = self.settings:readSetting("books", {})
   if not books[filename] then
     books[filename] = {}
@@ -87,7 +93,7 @@ function HardcoverSettings:unsubscribe(cb)
 end
 
 function HardcoverSettings:setSync(value)
-  self:_updateBookSetting(self.ui.document.file, { sync = value == true })
+  self:updateBookSetting(self.ui.document.file, { sync = value == true })
 end
 
 function HardcoverSettings:setTrackMethod(method)

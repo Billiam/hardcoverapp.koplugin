@@ -1,10 +1,8 @@
 local PageMapper = {}
+PageMapper.__index = PageMapper
 
-function PageMapper:init(o)
-  setmetatable(o, self)
-  o.__index = self
-
-  return o
+function PageMapper:new(o)
+  return setmetatable(o or {}, self)
 end
 
 function PageMapper:getMappedPage(raw_page, document_pages, remote_pages)
