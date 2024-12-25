@@ -398,68 +398,83 @@ function HardcoverApi:findUserBook(book_id, user_id)
 end
 
 function HardcoverApi:findDefaultEdition(book_id, user_id)
-  local query = [[
-    query ($bookId: Int!, $userId: Int!) {
-      user_books(where: {book_id: {_eq: $bookId}, user_id: {_eq: $userId}}) {
-        edition {
-          ...UserBookParts
-        }
-        user_book_reads(limit: 1, order_by: {id: asc}) {
-          edition {
-            ...UserBookParts
-          }
-        }
-      }
-      editions(
-        limit: 1
-        where: {book_id: {_eq: $bookId}}
-        order_by: {users_count: desc_nulls_last}
-      ) {
-        ...UserBookParts
-      }
-      books_by_pk(id: $bookId) {
-        default_physical_edition {
-          ...UserBookParts
-        }
-        default_ebook_edition {
-          ...UserBookParts
-        }
-      }
-    }
-    fragment UserBookParts on editions {
+  -- prefer:
+  -- 1. most recent matching user read
+  -- 2. a user book
+  -- 3. default ebook edition
+  -- 4. default physical edition
+  -- 5. most read book edition
+  local user_edition_fragment = [[
+    fragment UserEditionParts on editions {
       id
       edition_format
       pages
     }
   ]]
+  local user_book_query = [[
+    query ($bookId: Int!, $userId: Int!) {
+      user_books(limit: 1, where: { book_id: { _eq: $bookId}, user_id: { _eq: $userId }}) {
+        edition {
+          ...UserEditionParts
+        }
+        user_book_reads(limit: 1, order_by: {id: asc}) {
+          edition {
+            ...UserEditionParts
+          }
+        }
+      }
+    }
+  ]] .. user_edition_fragment
 
-  local results = self:query(query, { bookId = book_id, userId = user_id })
-  if results then
-    -- prefer:
-    -- 1. most recent matching user read
-    -- 2. a user book
-    -- 3. default ebook edition
-    -- 4. default physical edition
-    -- 5. most read book edition
-    for _, user_book in ipairs(results.user_books) do
-      local read_edition = _t.dig("user_book", "user_book_reads", 1, "edition")
+  local user_book_results = self:query(user_book_query, { bookId = book_id, userId = user_id })
+  if user_book_results then
+    local user_book = _t.dig(user_book_results, "user_books", 1)
+    if user_book then
+      local read_edition = _t.dig(user_book, "user_book_reads", 1, "edition")
       if read_edition then
         return read_edition
       end
       return user_book.edition
     end
+  end
 
-    if results.books_by_pk.default_ebook_edition then
-      return results.books_by_pk.default_ebook_edition
+  local default_edition_query = [[
+    query ($bookId: Int!) {
+     books_by_pk(id: $bookId) {
+        default_physical_edition {
+          ...UserEditionParts
+        }
+        default_ebook_edition {
+          ...UserEditionParts
+        }
+      }
+    }
+  ]] .. user_edition_fragment
+  local default_edition_results = self:query(default_edition_query, { bookId = book_id })
+  if default_edition_results then
+    if default_edition_results.books_by_pk.default_ebook_edition then
+      return default_edition_results.books_by_pk.default_ebook_edition
     end
 
-    if results.books_by_pk.default_physical_edition then
-      return results.books_by_pk.default_physical_edition
+    if default_edition_results.books_by_pk.default_physical_edition then
+      return default_edition_results.books_by_pk.default_physical_edition
     end
+  end
 
-    if #results.editions > 0 then
-      return results.editions[1]
-    end
+  local edition_query = [[
+    query ($bookId: Int!) {
+      editions(
+        limit: 1
+        where: {book_id: {_eq: $bookId}}
+        order_by: {users_count: desc_nulls_last}
+      ) {
+        ...UserEditionParts
+      }
+    }
+  ]] .. user_edition_fragment
+  local edition_results = self:query(edition_query, { bookId = book_id })
+  if edition_results then
+    return _t.dig(edition_results, "editions", 1)
   end
 end
 
