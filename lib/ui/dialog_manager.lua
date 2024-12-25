@@ -91,7 +91,7 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
   local edition_format = settings.edition_format
 
   if not edition_id then
-    local edition = Api:defaultEdition(settings.book_id, User:getId())
+    local edition = Api:findDefaultEdition(settings.book_id, User:getId())
     if edition then
       edition_id = edition.id
       edition_format = edition.format
