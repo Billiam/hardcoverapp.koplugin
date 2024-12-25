@@ -80,6 +80,7 @@ function HardcoverApp:init()
     ui = self.ui,
   }
   self.dialog_manager = DialogManager:new {
+    page_mapper = self.page_mapper,
     settings = self.settings,
     state = self.state,
     ui = self.ui,
@@ -98,10 +99,15 @@ function HardcoverApp:init()
   self.ui.menu:registerToMainMenu(self)
 end
 
+function HardcoverApp:_bookSettingChanged(setting, key)
+  return setting[key] ~= nil or _t.contains(_t.dig(setting, "_delete"), key)
+end
+
 function HardcoverApp:onSettingsChanged(field, change, original_value)
   if field == SETTING.BOOKS then
-    if change.sync ~= nil or _t.dig(change, "_delete", "sync") then
-      if change.sync then
+    local book_settings = change.config
+    if self:_bookSettingChanged(book_settings, "sync") then
+      if book_settings.sync then
         if not self.state.book_status.id then
           self:startReadCache()
         end
@@ -110,7 +116,7 @@ function HardcoverApp:onSettingsChanged(field, change, original_value)
       end
     end
 
-    if change.book_id or _t.dig(change, "_delete", "book_id") then
+    if self:_bookSettingChanged(book_settings, "book_id") then
       self:registerHighlight()
     end
   elseif field == SETTING.TRACK_METHOD then
@@ -178,7 +184,7 @@ function HardcoverApp:pageUpdateEvent(page)
   end
   --logger.warn("HARDCOVER page update event pending")
   local document_pages = self.ui.document:getPageCount()
-  local mapped_page = self.page_mapper:getMappedPage(page, document_pages, self:pages())
+  local mapped_page = self.page_mapper:getMappedPage(page, document_pages, self.settings:pages())
 
   if self.settings:trackByTime() then
     self:_throttledHandlePageUpdate(self.ui.document.file, mapped_page)
@@ -187,12 +193,12 @@ function HardcoverApp:pageUpdateEvent(page)
     local percent_interval = self.settings:trackPercentageInterval()
 
     local original_percent = math.floor(
-      self.page_mapper:getMappedPagePercent(self.state.last_page, document_pages, self:pages()) *
+      self.page_mapper:getMappedPagePercent(self.state.last_page, document_pages, self.settings:pages()) *
       100 / percent_interval
     )
 
     local new_percent = math.floor(
-      self.page_mapper:getMappedPagePercent(self.state.page, document_pages, self:pages()) *
+      self.page_mapper:getMappedPagePercent(self.state.page, document_pages, self.settings:pages()) *
       100 / percent_interval
     )
 
@@ -237,7 +243,11 @@ function HardcoverApp:onDocumentClose()
   end
 
   if self.page_update_pending then
-    local mapped_page = self.page_mapper:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
+    local mapped_page = self.page_mapper:getMappedPage(
+      self.state.page,
+      self.ui.document:getPageCount(),
+      self.settings:pages()
+    )
     self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
   end
 
@@ -256,7 +266,11 @@ function HardcoverApp:onNetworkDisconnecting()
   Scheduler:clear()
 
   if self.page_update_pending and self.ui.document and self.state.book_status.id and self.settings:syncEnabled() and self.settings:trackByTime() then
-    local mapped_page = self.page_mapper:getMappedPage(self.state.page, self.ui.document:getPageCount(), self:pages())
+    local mapped_page = self.page_mapper:getMappedPage(
+      self.state.page,
+      self.ui.document:getPageCount(),
+      self.settings:pages()
+    )
     self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
   end
   self.page_update_pending = false
@@ -423,7 +437,7 @@ function HardcoverApp:registerHighlight()
             selected_text.text,
             self.ui.document,
             raw_page,
-            self:pages(),
+            self.settings:pages(),
             nil,
             "quote"
           )
