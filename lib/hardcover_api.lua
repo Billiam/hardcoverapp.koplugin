@@ -397,7 +397,7 @@ function HardcoverApi:findUserBook(book_id, user_id)
   return results.user_books[1]
 end
 
-function HardcoverApi:defaultEdition(book_id, user_id)
+function HardcoverApi:findDefaultEdition(book_id, user_id)
   local query = [[
     query ($bookId: Int!, $userId: Int!) {
       user_books(where: {book_id: {_eq: $bookId}, user_id: {_eq: $userId}}) {
