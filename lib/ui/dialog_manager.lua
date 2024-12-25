@@ -106,7 +106,7 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
     input = text,
     event_type = event_type or "note",
     book_id = settings.book_id,
-    edition_id = settings.edition_id,
+    edition_id = edition_id,
     edition_format = edition_format,
     page = mapped_page,
     pages = remote_pages,
