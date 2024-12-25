@@ -5,12 +5,18 @@
 ### 🚀 Added
 
 * Added option to update books by percentage completed rather than timed updates
+* Display error and disable some functionality when Hardcover API indicates that API key is not valid
 
 ### 🩹 Fixes
 
 * Fix crash when linking book from hardcover menu
 * Fix automatic book linking not working unless track progress (or always track progress) already set
 * Fix failure to mark book as read when end of book action displays a dialog
+
+### 🧹 Chores
+
+* Update default edition selection in journal dialog to use multiple API calls instead of one per upcoming Hardcover
+  limits.
 
 ## 0.0.6 (2024-12-10)
 
