@@ -121,7 +121,7 @@ function HardcoverMenu:getSubMenuItems()
           },
           function(book)
             menu_instance:updateItems()
-            self:linkBook(book)
+            self.hardcover:linkBook(book)
           end
         )
       end,
