@@ -99,7 +99,7 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
     end
   end
 
-  mapped_page = mapped_page or self.page_mapper:getMappedPage(page, document.getPageCount(), remote_pages)
+  mapped_page = mapped_page or self.page_mapper:getMappedPage(page, document:getPageCount(), remote_pages)
 
   local dialog
   dialog = JournalDialog:new {
