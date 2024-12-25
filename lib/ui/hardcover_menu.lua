@@ -88,7 +88,7 @@ function HardcoverMenu:getSubMenuItems()
         local search_value, books, err = self.hardcover:findBookOptions(force_search)
 
         if err then
-          logger.error(err)
+          logger.err(err)
           return
         end
 
