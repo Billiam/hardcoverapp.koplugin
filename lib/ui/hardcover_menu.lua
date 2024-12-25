@@ -25,7 +25,9 @@ local HardcoverMenu = {}
 HardcoverMenu.__index = HardcoverMenu
 
 function HardcoverMenu:new(o)
-  return setmetatable(o or {}, self)
+  return setmetatable(o or {
+    enabled = true
+  }, self)
 end
 
 local privacy_labels = {
@@ -60,6 +62,10 @@ function HardcoverMenu:getSubMenuItems()
           return _("Link book")
         end
       end,
+      enabled_func = function()
+        -- leave button enabled to allow clearing local link when api disabled
+        return self.enabled or self.settings:bookLinked()
+      end,
       hold_callback = function(menu_instance)
         if self.settings:bookLinked() then
           self.settings:updateBookSetting(
@@ -74,8 +80,17 @@ function HardcoverMenu:getSubMenuItems()
       end,
       keep_menu_open = true,
       callback = function(menu_instance)
+        if not self.enabled then
+          return
+        end
+
         local force_search = self.settings:bookLinked()
-        local search_value, books = self.hardcover:findBookOptions(force_search)
+        local search_value, books, err = self.hardcover:findBookOptions(force_search)
+
+        if err then
+          logger.error(err)
+          return
+        end
 
         self.dialog_manager:buildSearchDialog(
           "Select book",
@@ -108,7 +123,7 @@ function HardcoverMenu:getSubMenuItems()
         return _(title)
       end,
       enabled_func = function()
-        return self.settings:bookLinked()
+        return self.enabled and self.settings:bookLinked()
       end,
       callback = function(menu_instance)
         local editions = Api:findEditions(self.settings:getLinkedBookId(), User:getId())
@@ -232,6 +247,9 @@ function HardcoverMenu:getStatusSubMenuItems()
   return {
     {
       text = _(ICON.BOOKMARK .. " Want To Read"),
+      enabled_func = function()
+        return self.enabled
+      end,
       checked_func = function()
         return self.state.book_status.status_id == HARDCOVER.STATUS.TO_READ
       end,
@@ -242,6 +260,9 @@ function HardcoverMenu:getStatusSubMenuItems()
     },
     {
       text = _(ICON.OPEN_BOOK .. " Currently Reading"),
+      enabled_func = function()
+        return self.enabled
+      end,
       checked_func = function()
         return self.state.book_status.status_id == HARDCOVER.STATUS.READING
       end,
@@ -252,6 +273,9 @@ function HardcoverMenu:getStatusSubMenuItems()
     },
     {
       text = _(ICON.CHECKMARK .. " Read"),
+      enabled_func = function()
+        return self.enabled
+      end,
       checked_func = function()
         return self.state.book_status.status_id == HARDCOVER.STATUS.FINISHED
       end,
@@ -262,6 +286,9 @@ function HardcoverMenu:getStatusSubMenuItems()
     },
     {
       text = _(ICON.STOP_CIRCLE .. " Did Not Finish"),
+      enabled_func = function()
+        return self.enabled
+      end,
       checked_func = function()
         return self.state.book_status.status_id == HARDCOVER.STATUS.DNF
       end,
@@ -273,7 +300,7 @@ function HardcoverMenu:getStatusSubMenuItems()
     {
       text = _(ICON.TRASH .. " Remove"),
       enabled_func = function()
-        return self.state.book_status.status_id ~= nil
+        return self.enabled and self.state.book_status.status_id ~= nil
       end,
       callback = function(menu_instance)
         local result = Api:removeRead(self.state.book_status.id)
@@ -298,7 +325,7 @@ function HardcoverMenu:getStatusSubMenuItems()
         return T(_("Update page: %1 of %2"), current_page, max_pages)
       end,
       enabled_func = function()
-        return self.state.book_status.status_id == HARDCOVER.STATUS.READING and self.settings:pages()
+        return self.enabled and self.state.book_status.status_id == HARDCOVER.STATUS.READING and self.settings:pages()
       end,
       callback = function(menu_instance)
         local reads = self.state.book_status.user_book_reads
@@ -342,7 +369,7 @@ function HardcoverMenu:getStatusSubMenuItems()
     {
       text = _("Add a note"),
       enabled_func = function()
-        return self.state.book_status.id ~= nil
+        return self.enabled and self.state.book_status.id ~= nil
       end,
       callback = function()
         local reads = self.state.book_status.user_book_reads
@@ -379,7 +406,7 @@ function HardcoverMenu:getStatusSubMenuItems()
         return _(text)
       end,
       enabled_func = function()
-        return self.state.book_status.id ~= nil
+        return self.enabled and self.state.book_status.id ~= nil
       end,
       callback = function(menu_instance)
         local rating = self.state.book_status.rating
@@ -419,7 +446,7 @@ function HardcoverMenu:getStatusSubMenuItems()
     {
       text = _("Set status visibility"),
       enabled_func = function()
-        return self.state.book_status.id ~= nil
+        return self.enabled and self.state.book_status.id ~= nil
       end,
       sub_item_table_func = function()
         return self:getVisibilitySubMenuItems()

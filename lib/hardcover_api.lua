@@ -15,7 +15,9 @@ local headers = {
   Authorization = "Bearer " .. config.token
 }
 
-local HardcoverApi = {}
+local HardcoverApi = {
+  enabled = true
+}
 
 local book_fragment = [[
 fragment BookParts on books {
@@ -85,7 +87,7 @@ function HardcoverApi:me()
 end
 
 function HardcoverApi:query(query, parameters)
-  if not NetworkManager:isConnected() then
+  if not NetworkManager:isConnected() or not self.enabled then
     return
   end
 
@@ -102,8 +104,14 @@ function HardcoverApi:query(query, parameters)
       if data.data then
         return data.data
       elseif data.errors or data.error then
-        local err = data.errors or data.error
-        return nil, { error = err }
+        local err = data.errors or { data.error }
+        if self.on_error then
+          for _, e in ipairs(err) do
+            self.on_error(e)
+          end
+        end
+
+        return nil, { errors = err }
       end
     elseif not string.find(code, "^%d%d%d$") then
       return nil, { completed = false }
@@ -290,7 +298,11 @@ function HardcoverApi:search(title, author, userId, page)
       }
     }]]
   local search = title .. " " .. (author or "")
-  local results = self:query(query, { query = search, page = page })
+  local results, error = self:query(query, { query = search, page = page })
+  if error then
+    return nil, error
+  end
+
   if not results then
     return {}
   end
