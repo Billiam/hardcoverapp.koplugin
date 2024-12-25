@@ -1,8 +1,10 @@
+local _ = require("gettext")
 local DataStorage = require("datastorage")
 local Dispatcher = require("dispatcher")
 local DocSettings = require("docsettings")
-local _ = require("gettext")
+local logger = require("logger")
 local math = require("math")
+
 local NetworkManager = require("ui/network/manager")
 local Trapper = require("ui/trapper")
 local UIManager = require("ui/uimanager")
@@ -33,7 +35,8 @@ local HardcoverApp = WidgetContainer:extend {
   is_doc_only = false,
   state = nil,
   settings = nil,
-  width = nil
+  width = nil,
+  enabled = true
 }
 
 local HIGHLIGHT_MENU_NAME = "13_0_make_hardcover_highlight_item"
@@ -63,6 +66,19 @@ function HardcoverApp:init()
   self.settings:subscribe(function(field, change, original_value) self:onSettingsChanged(field, change, original_value) end)
 
   User.settings = self.settings
+  Api.on_error = function(err)
+    if not err or not self.enabled then
+      return
+    end
+
+    if _t.dig(err, "extensions", "code") == HARDCOVER.ERROR.JWT or (err.message and string.find(err.message, "JWT")) then
+      self:disable()
+      UIManager:show(InfoMessage:new {
+        text = "Your Hardcover API key is not valid or has expired. Please update it and restart",
+        icon = "notice-warning",
+      })
+    end
+  end
 
   self.cache = Cache:new {
     settings = self.settings,
@@ -86,8 +102,10 @@ function HardcoverApp:init()
     ui = self.ui,
   }
   self.menu = HardcoverMenu:new {
-    dialog_manager = self.dialog_manager,
+    enabled = true,
+
     cache = self.cache,
+    dialog_manager = self.dialog_manager,
     hardcover = self.hardcover,
     settings = self.settings,
     state = self.state,
@@ -101,6 +119,14 @@ end
 
 function HardcoverApp:_bookSettingChanged(setting, key)
   return setting[key] ~= nil or _t.contains(_t.dig(setting, "_delete"), key)
+end
+
+function HardcoverApp:disable()
+  self.enabled = false
+  if self.menu then
+    self.menu.enabled = false
+  end
+  self:registerHighlight()
 end
 
 function HardcoverApp:onSettingsChanged(field, change, original_value)
@@ -420,7 +446,7 @@ end
 function HardcoverApp:registerHighlight()
   self.ui.highlight:removeFromHighlightDialog(HIGHLIGHT_MENU_NAME)
 
-  if self.settings:bookLinked() then
+  if self.enabled and self.settings:bookLinked() then
     self.ui.highlight:addToHighlightDialog(HIGHLIGHT_MENU_NAME, function(this)
       return {
         text_func = function()

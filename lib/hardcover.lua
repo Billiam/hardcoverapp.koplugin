@@ -97,7 +97,8 @@ function Hardcover:findBookOptions(force_search)
 
     title = filename:gsub("_", " ")
   end
-  return title, Api:findBooks(title, props.authors, user_id)
+  local result, err = Api:findBooks(title, props.authors, user_id)
+  return title, result, err
 end
 
 function Hardcover:autolinkBook(book)

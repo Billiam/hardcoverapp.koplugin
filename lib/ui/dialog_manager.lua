@@ -78,11 +78,17 @@ function DialogManager:buildSearchDialog(title, items, active_item, book_callbac
 end
 
 function DialogManager:updateSearchResults(search)
-  local books = Api:findBooks(search, nil, User:getId())
+  local books, error = Api:findBooks(search, nil, User:getId())
+  if error then
+    if not Api.enabled then
+      UIManager:close(self.search_dialog)
+    end
+
+    return
+  end
 
   self.search_dialog:setItems(self.search_dialog.title, books, self.search_dialog.active_item)
   self.search_dialog.search_value = search
-  return true, false
 end
 
 function DialogManager:journalEntryForm(text, document, page, remote_pages, mapped_page, event_type)

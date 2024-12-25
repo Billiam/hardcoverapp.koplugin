@@ -12,6 +12,9 @@ local Hardcover = {
   },
   CATEGORY = {
     TAG = "Tag",
+  },
+  ERROR = {
+    JWT = "invalid-jwt"
   }
 }
 
