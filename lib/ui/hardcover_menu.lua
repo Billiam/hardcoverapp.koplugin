@@ -135,8 +135,8 @@ function HardcoverMenu:getSubMenuItems()
             edition_id = self.settings:getLinkedEditionId()
           },
           function(book)
-            menu_instance:updateItems()
             self.hardcover:linkBook(book)
+            menu_instance:updateItems()
           end
         )
       end,
