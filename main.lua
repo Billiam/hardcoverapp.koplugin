@@ -17,6 +17,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _t = require("lib/table_util")
 local Api = require("lib/hardcover_api")
 local Cache = require("lib/cache")
+local debounce = require("lib/debounce")
 local Hardcover = require("lib/hardcover")
 local HardcoverSettings = require("lib/hardcover_settings")
 local PageMapper = require("lib/page_mapper")
@@ -138,7 +139,7 @@ function HardcoverApp:onSettingsChanged(field, change, original_value)
           self:startReadCache()
         end
       else
-        self:cancelPageUpdate()
+        self:cancelPendingUpdates()
       end
     end
 
@@ -146,7 +147,7 @@ function HardcoverApp:onSettingsChanged(field, change, original_value)
       self:registerHighlight()
     end
   elseif field == SETTING.TRACK_METHOD then
-    self:_cancelPageUpdate()
+    self:cancelPendingUpdates()
     self:initializePageUpdate()
   elseif field == SETTING.LINK_BY_HARDCOVER or field == SETTING.LINK_BY_ISBN or field == SETTING.LINK_BY_TITLE then
     if change then
@@ -199,6 +200,8 @@ function HardcoverApp:initializePageUpdate()
     track_frequency,
     HardcoverApp._handlePageUpdate
   )
+
+  HardcoverApp.onPageUpdate, HardcoverApp._cancelPageUpdateEvent = debounce(2, HardcoverApp.pageUpdateEvent)
 end
 
 function HardcoverApp:pageUpdateEvent(page)
@@ -234,7 +237,6 @@ function HardcoverApp:pageUpdateEvent(page)
   end
 end
 
-HardcoverApp.onPageUpdate = HardcoverApp.pageUpdateEvent
 function HardcoverApp:onPosUpdate(_, page)
   if self.state.process_page_turns then
     self:pageUpdateEvent(page)
@@ -257,12 +259,22 @@ function HardcoverApp:onReaderReady()
   end
 end
 
-function HardcoverApp:onDocumentClose()
-  UIManager:unschedule(self.startCacheRead)
-
+function HardcoverApp:cancelPendingUpdates()
   if self._cancelPageUpdate then
     self:_cancelPageUpdate()
   end
+
+  if self._cancelPageUpdateEvent then
+    self:_cancelPageUpdateEvent()
+  end
+
+  self.page_update_pending = false
+end
+
+function HardcoverApp:onDocumentClose()
+  UIManager:unschedule(self.startCacheRead)
+
+  self:cancelPendingUpdates()
 
   if not self.state.book_status.id and not self.settings:syncEnabled() then
     return
@@ -285,9 +297,7 @@ end
 
 function HardcoverApp:onNetworkDisconnecting()
   --logger.warn("HARDCOVER on disconnecting")
-  if self._cancelPageUpdate then
-    self:_cancelPageUpdate()
-  end
+  self:cancelPendingUpdates()
 
   Scheduler:clear()
 
@@ -473,13 +483,6 @@ function HardcoverApp:registerHighlight()
       }
     end)
   end
-end
-
-function HardcoverApp:cancelPageUpdate()
-  if self._cancelPageUpdate then
-    self:_cancelPageUpdate()
-  end
-  self.page_update_pending = false
 end
 
 function HardcoverApp:addToMainMenu(menu_items)
