@@ -160,8 +160,7 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
   --logger.warn("HARDCOVER: Throttled page update", mapped_page)
   self.page_update_pending = false
 
-  local book_settings = self.settings:readBookSettings(filename)
-  if not book_settings.book_id or not book_settings.sync then
+  if not self:syncFileUpdates(filename) then
     return
   end
 
@@ -321,9 +320,8 @@ end
 
 function HardcoverApp:onEndOfBook()
   local file_path = self.ui.document.file
-  local book_settings = self.settings:readBookSettings(file_path)
 
-  if not book_settings.book_id or not book_settings.sync then
+  if not self:syncFileUpdates(file_path) then
     return
   end
 
@@ -348,7 +346,8 @@ function HardcoverApp:onEndOfBook()
   local user_id = User:getId()
 
   local marker = function()
-    local user_book = Api:findUserBook(book_settings.book_id, user_id) or {}
+    local book_id = self.settings:readBookSetting(file_path, "book_id")
+    local user_book = Api:findUserBook(book_id, user_id) or {}
     self.cache:updateBookStatus(file_path, HARDCOVER.STATUS.FINISHED, user_book.privacy_setting_id)
   end
 
@@ -374,10 +373,12 @@ function HardcoverApp:onEndOfBook()
   end
 end
 
-function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
-  local book_settings = self.settings:readBookSettings(file)
+function HardcoverApp:syncFileUpdates(filename)
+  return self.settings:readBookSetting(filename, "book_id") and self.settings:fileSyncEnabled(filename)
+end
 
-  if not book_settings.book_id or not book_settings.sync then
+function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
+  if not self:syncFileUpdates(file) then
     return
   end
 
@@ -389,7 +390,8 @@ function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
   end
 
   if status then
-    local user_book = Api:findUserBook(book_settings.book_id, User:getId()) or {}
+    local book_id = self.settings:readBookSetting(file, "book_id")
+    local user_book = Api:findUserBook(book_id, User:getId()) or {}
     self.cache:updateBookStatus(file, status, user_book.privacy_setting_id)
 
     UIManager:show(InfoMessage:new {
