@@ -130,12 +130,16 @@ function HardcoverSettings:getLinkedEditionId()
   return self:readBookSetting(self.ui.document.file, "edition_id")
 end
 
-function HardcoverSettings:syncEnabled()
-  local sync_value = self:readBookSetting(self.ui.document.file, "sync")
+function HardcoverSettings:fileSyncEnabled(file)
+  local sync_value = self:readBookSetting(file, "sync")
   if sync_value == nil then
     sync_value = self.settings:readSetting(SETTING.ALWAYS_SYNC)
   end
   return sync_value == true
+end
+
+function HardcoverSettings:syncEnabled()
+  return self:fileSyncEnabled(self.ui.document.file)
 end
 
 function HardcoverSettings:autolinkEnabled()
