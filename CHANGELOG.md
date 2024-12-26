@@ -5,7 +5,8 @@
 ### 🚀 Added
 
 * Added option to update books by percentage completed rather than timed updates
-* Display error and disable some functionality when Hardcover API indicates that API key is not valid
+* Display error and disable some functionality when Hardcover API indicates that API key is not valid, in preparation
+  for upcoming API key reset
 
 ### 🩹 Fixes
 
@@ -13,12 +14,13 @@
 * Fix automatic book linking not working unless track progress (or always track progress) already set
 * Fix failure to mark book as read when end of book action displays a dialog
 * Fix a crash when searching without an internet connection
+* Fix page update tracking not working correctly when using "always track progress" setting
 
 ### 🧹 Chores
 
-* Update default edition selection in journal dialog to use multiple API calls instead of one per upcoming Hardcover
-  limits.
-* Fetch book authors from cached column in hardcover API
+* Update default edition selection in journal dialog to use multiple API calls instead of one due to upcoming Hardcover
+  API limits
+* Fetch book authors from cached column in Hardcover API
 
 ## 0.0.6 (2024-12-10)
 
@@ -34,8 +36,8 @@
 
 ### 🩹 Fixes
 
-* Fix failed identifier parsing by hardcover slug
-* Fix error when searching for books by hardcover identifiers
+* Fix failed identifier parsing by Hardcover slug
+* Fix error when searching for books by Hardcover identifiers
 * Fix note content not saving depending on last focused field
 * Fix note failing to save without tags
 
@@ -43,13 +45,13 @@
 
 ### 🩹 Fixes
 
-* Fix error when sorting books in hardcover search
+* Fix error when sorting books in Hardcover search
 
 ## 0.0.3 (2024-11-29)
 
 ### 🩹 Fixes
 
-* Fixed autolink failing for hardcover identifiers and title
+* Fixed autolink failing for Hardcover identifiers and title
 * Fixed autolink not displaying success notification
 
 ## 0.0.2 (2024-11-27)
