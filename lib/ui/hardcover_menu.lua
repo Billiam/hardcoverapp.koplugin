@@ -104,6 +104,7 @@ function HardcoverMenu:getSubMenuItems()
           end,
           function(search)
             self.dialog_manager:updateSearchResults(search)
+            return true
           end,
           search_value
         )
