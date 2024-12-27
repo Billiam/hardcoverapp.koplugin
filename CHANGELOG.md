@@ -12,6 +12,7 @@
 
 * Fix crash when linking book from hardcover menu
 * Fix automatic book linking not working unless track progress (or always track progress) already set
+* Fix automatic book linking not working for hardcover identifiers
 * Fix failure to mark book as read when end of book action displays a dialog
 * Fix a crash when searching without an internet connection
 * Fix page update tracking not working correctly when using "always track progress" setting
