@@ -163,7 +163,7 @@ describe("PageMapper", function()
 
     it("returns the completion percentage if no map is available", function()
       local page_map = PageMapper:new { state = {} }
-      assert.are_equal(0.5, page_map:getMappedPagePercent(10, 20, 10000))
+      assert.are.equal(0.5, page_map:getMappedPagePercent(10, 20, 10000))
     end)
   end)
 end)
