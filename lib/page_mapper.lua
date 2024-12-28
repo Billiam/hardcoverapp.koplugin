@@ -13,7 +13,7 @@ function PageMapper:getMappedPage(raw_page, document_pages, remote_pages)
   end
 
   if remote_pages and document_pages then
-    return math.floor((raw_page / document_pages) * remote_pages + 0.5)
+    return math.floor((raw_page / document_pages) * remote_pages)
   end
 
   return raw_page
@@ -39,10 +39,12 @@ function PageMapper:cachePageMap()
       lookup[i] = real_page
     end
 
-    if v.label ~= last_label then
+    if last_label ~= nil and v.label ~= last_label then
       real_page = real_page + 1
-      last_label = v.label
     end
+
+    last_label = v.label
+
     lookup[v.page] = real_page
     last_page = v.page
   end

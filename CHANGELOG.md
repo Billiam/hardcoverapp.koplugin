@@ -16,6 +16,7 @@
 * Fix failure to mark book as read when end of book action displays a dialog
 * Fix a crash when searching without an internet connection
 * Fix page update tracking not working correctly when using "always track progress" setting
+* Fixed off-by-one page number issue when document contains a page map
 
 ### 🧹 Chores
 
