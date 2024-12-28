@@ -15,8 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Run Busted
+        uses: lunarmodules/busted@v2.2.0
+
       - name: Zip release
-        run: zip -r hardcoverapp.koplugin.zip . -x '*.git*'
+        run: zip -r hardcoverapp.koplugin.zip . -x '*.git*' 'spec/*' 'lua_modules/*' '.luarocks/*' 'lua' 'luarocks' '.tool-versions' '*.rockspec'
 
       - name: Release
         uses: softprops/action-gh-release@v2

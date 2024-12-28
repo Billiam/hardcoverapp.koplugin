@@ -7,7 +7,6 @@ function Book:parseIdentifiers(identifiers)
     return result
   end
 
-  -- TODO: are multiple identifiers comma/semicolon delimited?
   for line in string.lower(identifiers):gmatch("%s*([^%s]+)%s*") do
     -- check for hardcover: and hardcover-edition:
     local hc = string.match(line, "hardcover:([%w_-]+)")
