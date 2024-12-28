@@ -1,0 +1,13 @@
+name: Test
+
+on: [ push, pull_request ]
+
+jobs:
+  sile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Busted
+        uses: lunarmodules/busted@v0
