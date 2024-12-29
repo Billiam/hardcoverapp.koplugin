@@ -7,6 +7,7 @@
 * Added option to update books by percentage completed rather than timed updates
 * Display error and disable some functionality when Hardcover API indicates that API key is not valid, in preparation
   for [upcoming API key reset](https://github.com/Billiam/hardcoverapp.koplugin/issues/6)
+* Allow linking books, enabling/disabling book tracking from KOReader's gesture manager
 
 ### 🩹 Fixes
 
@@ -16,7 +17,8 @@
 * Fix failure to mark book as read when end of book action displays a dialog
 * Fix a crash when searching without an internet connection
 * Fix page update tracking not working correctly when using "always track progress" setting
-* Fixed off-by-one page number issue when document contains a page map
+* Fix off-by-one page number issue when document contains a page map
+* Fix unable to set edition if that edition already set in hardcover
 
 ### 🧹 Chores
 
