@@ -85,29 +85,10 @@ function HardcoverMenu:getSubMenuItems()
         end
 
         local force_search = self.settings:bookLinked()
-        local search_value, books, err = self.hardcover:findBookOptions(force_search)
 
-        if err then
-          logger.err(err)
-          return
-        end
-
-        self.dialog_manager:buildSearchDialog(
-          "Select book",
-          books,
-          {
-            book_id = self.settings:getLinkedBookId()
-          },
-          function(book)
-            self.hardcover:linkBook(book)
-            menu_instance:updateItems()
-          end,
-          function(search)
-            self.dialog_manager:updateSearchResults(search)
-            return true
-          end,
-          search_value
-        )
+        self.hardcover:showLinkBookDialog(force_search, function()
+          menu_instance:updateItems()
+        end)
       end,
     },
     {

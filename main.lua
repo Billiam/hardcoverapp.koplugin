@@ -46,7 +46,21 @@ function HardcoverApp:onDispatcherRegisterActions()
   Dispatcher:registerAction("hardcover_link", {
     category = "none",
     event = "HardcoverLink",
-    title = _("Hardcover Link"),
+    title = _("Hardcover: Link book"),
+    general = true,
+  })
+
+  Dispatcher:registerAction("hardcover_track", {
+    category = "none",
+    event = "HardcoverTrack",
+    title = _("Hardcover: Track progress"),
+    general = true,
+  })
+
+  Dispatcher:registerAction("hardcover_stop_track", {
+    category = "none",
+    event = "HardcoverStopTrack",
+    title = _("Hardcover: Stop tracking progress"),
     general = true,
   })
 end
@@ -85,13 +99,6 @@ function HardcoverApp:init()
     settings = self.settings,
     state = self.state
   }
-  self.hardcover = Hardcover:new {
-    cache = self.cache,
-    dialog_manager = self.dialog_manager,
-    settings = self.settings,
-    state = self.state,
-    ui = self.ui,
-  }
   self.page_mapper = PageMapper:new {
     state = self.state,
     ui = self.ui,
@@ -102,6 +109,14 @@ function HardcoverApp:init()
     state = self.state,
     ui = self.ui,
   }
+  self.hardcover = Hardcover:new {
+    cache = self.cache,
+    dialog_manager = self.dialog_manager,
+    settings = self.settings,
+    state = self.state,
+    ui = self.ui,
+  }
+
   self.menu = HardcoverMenu:new {
     enabled = true,
 
@@ -128,6 +143,30 @@ function HardcoverApp:disable()
     self.menu.enabled = false
   end
   self:registerHighlight()
+end
+
+function HardcoverApp:onHardcoverLink()
+  self.hardcover:showLinkBookDialog(false, function(book)
+    UIManager:show(Notification:new {
+      text = _("Linked to: " .. book.title),
+    })
+  end)
+end
+
+function HardcoverApp:onHardcoverTrack()
+  self.settings:setSync(true)
+  UIManager:nextTick(function()
+    UIManager:show(Notification:new {
+      text = _("Progress tracking enabled")
+    })
+  end)
+end
+
+function HardcoverApp:onHardcoverStopTrack()
+  self.settings:setSync(false)
+  UIManager:show(Notification:new {
+    text = _("Progress tracking disabled")
+  })
 end
 
 function HardcoverApp:onSettingsChanged(field, change, original_value)

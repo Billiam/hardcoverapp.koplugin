@@ -20,6 +20,32 @@ function Hardcover:new(o)
   return setmetatable(o, self)
 end
 
+function Hardcover:showLinkBookDialog(force_search, link_callback)
+  local search_value, books, err = self:findBookOptions(force_search)
+
+  if err then
+    logger.err(err)
+    return
+  end
+
+  self.dialog_manager:buildSearchDialog(
+    "Select book",
+    books,
+    {
+      book_id = self.settings:getLinkedBookId()
+    },
+    function(book)
+      self:linkBook(book)
+      link_callback(book)
+    end,
+    function(search)
+      self.dialog_manager:updateSearchResults(search)
+      return true
+    end,
+    search_value
+  )
+end
+
 function Hardcover:updateCurrentBookStatus(status, privacy_setting_id)
   self.cache:updateBookStatus(self.ui.document.file, status, privacy_setting_id)
   if not self.state.book_status.id then
