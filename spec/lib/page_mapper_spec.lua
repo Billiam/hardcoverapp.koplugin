@@ -166,4 +166,24 @@ describe("PageMapper", function()
       assert.are.equal(0.5, page_map:getMappedPagePercent(10, 20, 10000))
     end)
   end)
+
+  describe("getRemotePagePercent", function()
+    it("returns the percent of the equivalent floored remote page", function()
+      local page_map = PageMapper:new { state = {} }
+
+      local percent, page = page_map:getRemotePagePercent(10, 20, 29)
+
+      assert.are.equal(14 / 29, percent)
+      assert.are.equal(14, page)
+    end)
+
+    it("returns a simple percentage if remote page is unavailable", function()
+      local page_map = PageMapper:new { state = {} }
+
+      local percent, page = page_map:getRemotePagePercent(10, 20)
+
+      assert.are.equal(0.5, percent)
+      assert.are.equal(10, page)
+    end)
+  end)
 end)

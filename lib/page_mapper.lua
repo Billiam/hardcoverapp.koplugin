@@ -66,4 +66,12 @@ function PageMapper:getMappedPagePercent(raw_page, document_pages, remote_pages)
   return 0
 end
 
+function PageMapper:getRemotePagePercent(raw_page, document_pages, remote_pages)
+  local total_pages = remote_pages or document_pages
+  local local_percent = self:getMappedPagePercent(raw_page, document_pages, remote_pages)
+
+  local remote_page = math.floor(local_percent * total_pages)
+  return remote_page / total_pages, remote_page
+end
+
 return PageMapper
