@@ -55,10 +55,6 @@ function Hardcover:linkBook(book)
     _delete = delete
   }
 
-  if self.state.book_status.book_id == new_settings.book_id and self.state.book_status.edition_id == new_settings.edition_id then
-    return
-  end
-
   self.settings:updateBookSetting(filename, new_settings)
   self.cache:cacheUserBook()
 
