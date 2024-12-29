@@ -212,25 +212,32 @@ function HardcoverApp:pageUpdateEvent(page)
   end
   --logger.warn("HARDCOVER page update event pending")
   local document_pages = self.ui.document:getPageCount()
-  local mapped_page = self.page_mapper:getMappedPage(page, document_pages, self.settings:pages())
+  local remote_pages = self.settings:pages()
 
   if self.settings:trackByTime() then
+    local mapped_page = self.page_mapper:getMappedPage(page, document_pages, remote_pages)
+
     self:_throttledHandlePageUpdate(self.ui.document.file, mapped_page)
     self.page_update_pending = true
   elseif self.settings:trackByProgress() and self.state.last_page then
     local percent_interval = self.settings:trackPercentageInterval()
 
-    local original_percent = math.floor(
-      self.page_mapper:getMappedPagePercent(self.state.last_page, document_pages, self.settings:pages()) *
-      100 / percent_interval
+    local previous_percent = self.page_mapper:getRemotePagePercent(
+      self.state.last_page,
+      document_pages,
+      remote_pages
     )
 
-    local new_percent = math.floor(
-      self.page_mapper:getMappedPagePercent(self.state.page, document_pages, self.settings:pages()) *
-      100 / percent_interval
+    local current_percent, mapped_page = self.page_mapper:getRemotePagePercent(
+      self.state.page,
+      document_pages,
+      remote_pages
     )
 
-    if original_percent ~= new_percent then
+    local last_compare = math.floor(previous_percent * 100 / percent_interval)
+    local current_compare = math.floor(current_percent * 100 / percent_interval)
+
+    if last_compare ~= current_compare then
       self:_handlePageUpdate(self.ui.document.file, mapped_page)
     end
   end
