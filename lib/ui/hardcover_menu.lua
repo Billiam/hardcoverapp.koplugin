@@ -159,7 +159,6 @@ function HardcoverMenu:getSubMenuItems()
     {
       text = _("About"),
       callback = function()
-        -- FIXME: No new release
         local new_release = Github:newestRelease()
         local version = table.concat(VERSION, ".")
         local new_release_str = ""
