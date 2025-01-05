@@ -468,7 +468,7 @@ function HardcoverApp:startReadCache()
       end
 
       Trapper:wrap(function()
-        local book_settings = self.settings:readBookSettings(self.ui.document.file)
+        local book_settings = self.settings:readBookSettings(self.ui.document.file) or {}
         --logger.warn("HARDCOVER", book_settings)
         if book_settings.book_id and not self.state.book_status.id then
           if self.settings:syncEnabled() then
