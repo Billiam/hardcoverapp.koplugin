@@ -475,7 +475,7 @@ function ListMenuItem:update()
       local fontsize_authors = _fontSize(18, 22)
       local wtitle, wauthors
       local title, authors
-      local series_mode = BookInfoManager:getSetting("series_mode")
+      local series_mode = "append_series_to_authors"
 
       -- whether to use or not title and authors
       -- (We wrap each metadata text with BD.auto() to get for each of them
