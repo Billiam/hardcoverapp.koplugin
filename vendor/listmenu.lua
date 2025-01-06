@@ -977,6 +977,15 @@ function ListMenu:_updateItemsBuildUI()
     local index = idx_offset + idx
     local entry = self.item_table[index]
     if entry == nil then break end
+
+    if entry.cover_bb then
+      entry.lazy_load_cover = true
+      entry.has_cover = false
+      entry.cover_bb:free()
+      entry.cover_bb = nil
+    end
+
+
     entry.idx = index
     if index == self.itemnumber then -- focused item
       select_number = idx
