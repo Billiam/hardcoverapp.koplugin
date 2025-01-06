@@ -14,7 +14,7 @@ assignees: ''
 **Describe the bug**
 A clear and concise description of what the bug is.
 
-** `crash.log` (if applicable)**
+**`crash.log` (if applicable)**
 `crash.log` is a file that is automatically created when KOReader crashes. It can normally be found in the KOReader directory:
 
 * `/mnt/private/koreader` for Cervantes
