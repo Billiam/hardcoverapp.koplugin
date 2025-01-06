@@ -10,6 +10,7 @@ local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
 local logger = require("logger")
+local _t = require("lib/table_util")
 
 local Screen = Device.screen
 
@@ -63,6 +64,22 @@ function HardcoverSearchDialog:createListItem(book, active_item)
     edition_format = book.edition_format,
     highlight = active,
   }
+
+
+  if not book.edition_id and _t.dig(book, "book_series", 1, "position") then
+    result.series = book.book_series[1].series.name
+    if book.book_series[1].position then
+      result.series = result.series .. " #" .. book.book_series[1].position
+    end
+  end
+  if book.language and book.language.code2 then
+    if self.series then
+      result.series = " - " .. book.language.code2
+    else
+      result.series = book.language.language
+    end
+  end
+
 
   if book.pages then
     result.pages = book.pages

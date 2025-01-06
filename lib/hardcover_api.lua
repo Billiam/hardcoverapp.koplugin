@@ -47,11 +47,17 @@ fragment EditionParts on editions {
   }
   cached_image
   edition_format
+  language {
+    code2
+    language
+  }
   pages
   publisher {
     name
   }
   release_date
+  reading_format_id
+  title
   users_count
 }]]
 
@@ -367,6 +373,8 @@ function HardcoverApi:normalizedEdition(edition)
   else
     result.release_year = nil
   end
+  result.language = edition.language
+  result.title = edition.title
   result.reads = edition.reads
   result.pages = edition.pages
   result.filetype = edition.edition_format or "physical book"
