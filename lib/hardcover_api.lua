@@ -8,6 +8,8 @@ local Trapper = require("ui/trapper")
 local NetworkManager = require("ui/network/manager")
 local socketutil = require("socketutil")
 
+local Book = require("lib/book")
+
 local api_url = "https://api.hardcover.app/v1/graphql"
 
 local headers = {
@@ -47,6 +49,7 @@ fragment EditionParts on editions {
   }
   cached_image
   edition_format
+  reading_format_id
   language {
     code2
     language
@@ -236,7 +239,7 @@ end
 function HardcoverApi:findEditions(book_id, user_id)
   local edition_search = [[
     query ($id: Int!, $userId: Int!) {
-      editions(where: { book_id: { _eq: $id }, _or: [{edition_format: { _is_null: true }}, {edition_format: { _nin: ["Audio CD", "Audiobook", "Audio Cassette", "Audible Audio"] }} ]},
+      editions(where: { book_id: { _eq: $id }, _or: [{reading_format_id: { _is_null: true }}, {reading_format_id: { _neq: 2 }} ]},
       limit: 50,
       order_by: { users_count: desc_nulls_last }) {
         ...EditionParts
@@ -364,7 +367,8 @@ function HardcoverApi:normalizedEdition(edition)
   local result = edition.book
 
   result.edition_id = edition.id
-  result.edition_format = edition.edition_format
+  result.edition_format = Book:editionFormatName(edition.edition_format, edition.reading_format_id)
+
   result.cached_image = edition.cached_image
   result.publisher = edition.publisher
   if edition.release_date then
@@ -377,7 +381,7 @@ function HardcoverApi:normalizedEdition(edition)
   result.title = edition.title
   result.reads = edition.reads
   result.pages = edition.pages
-  result.filetype = edition.edition_format or "physical book"
+  result.filetype = result.edition_format or "Physical Book"
   result.users_count = edition.users_count
 
   return result
@@ -428,6 +432,7 @@ function HardcoverApi:findDefaultEdition(book_id, user_id)
     fragment UserEditionParts on editions {
       id
       edition_format
+      reading_format_id
       pages
     }
   ]]

@@ -1,4 +1,26 @@
 local Book = {}
+local reading_format_labels = {
+  "Physical Book",
+  "Audiobook",
+  nil,
+  "E-Book"
+}
+
+function Book:readingFormat(format_id)
+  if not format_id then
+    return
+  end
+
+  return reading_format_labels[format_id]
+end
+
+function Book:editionFormatName(edition_format, format_id)
+  if edition_format and edition_format ~= "" then
+    return edition_format
+  end
+
+  return self:readingFormat(format_id)
+end
 
 function Book:parseIdentifiers(identifiers)
   local result = {}
