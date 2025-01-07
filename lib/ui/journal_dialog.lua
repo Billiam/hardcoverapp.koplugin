@@ -165,7 +165,7 @@ function JournalDialog:init()
   self.edition_button = Button:new {
     text = "edition",
     text_func = function()
-      return self.edition_format or "physical book"
+      return self.edition_format or "Physical Book"
     end,
     width = (self.width - 10 - 30) / 2,
     text_font_size = 16,

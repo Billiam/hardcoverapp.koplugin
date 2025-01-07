@@ -6,6 +6,7 @@ local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 
 local Api = require("lib/hardcover_api")
+local Book = require("lib/book")
 local User = require("lib/user")
 
 local HARDCOVER = require("lib/constants/hardcover")
@@ -100,7 +101,7 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
     local edition = Api:findDefaultEdition(settings.book_id, User:getId())
     if edition then
       edition_id = edition.id
-      edition_format = edition.format
+      edition_format = Book:editionFormatName(edition.edition_format, edition.reading_format_id)
       remote_pages = edition.pages
     end
   end
@@ -138,9 +139,15 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
         editions,
         { edition_id = dialog.edition_id },
         function(edition)
-          if edition then
-            dialog:setEdition(edition.edition_id, edition.edition_format, edition.pages)
+          if not edition then
+            return
           end
+
+          dialog:setEdition(
+            edition.edition_id,
+            Book:editionFormatName(edition.edition_format, edition.reading_format_id),
+            edition.pages
+          )
         end
       )
     end

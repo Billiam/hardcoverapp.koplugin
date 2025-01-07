@@ -75,7 +75,7 @@ function Hardcover:linkBook(book)
   local new_settings = {
     book_id = book.book_id,
     edition_id = book.edition_id,
-    edition_format = book.edition_format,
+    edition_format = Book:editionFormatName(book.edition_format, book.reading_format_id),
     pages = book.pages,
     title = book.title,
     _delete = delete
