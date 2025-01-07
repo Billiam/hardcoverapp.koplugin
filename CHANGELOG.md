@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### 🚀 Added
+
+* Display edition language and series in book searches
+
+### 🩹 Fixes
+
+* Fix crash when navigating to previous page in search menu after images have loaded
+* Fall back to less specific reading format when edition format is unavailable
+
 ## 0.0.7 (2024-12-30)
 
 ### 🚀 Added
