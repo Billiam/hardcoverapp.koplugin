@@ -5,7 +5,7 @@ local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
 local logger = require("logger")
 local _ = require("gettext")
-local ImageLoader = require("lib/ui/image_loader")
+local ImageLoader = require("hardcover/lib/ui/image_loader")
 local RenderImage = require("ui/renderimage")
 
 local BookInfoManager = require("bookinfomanager")

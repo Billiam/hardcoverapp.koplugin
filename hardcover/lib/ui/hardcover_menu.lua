@@ -12,13 +12,13 @@ local UIManager = require("ui/uimanager")
 local InfoMessage = require("ui/widget/infomessage")
 local SpinWidget = require("ui/widget/spinwidget")
 
-local Api = require("lib/hardcover_api")
-local Github = require("lib/github")
-local User = require("lib/user")
+local Api = require("hardcover/lib/hardcover_api")
+local Github = require("hardcover/lib/github")
+local User = require("hardcover/lib/user")
 
-local HARDCOVER = require("lib/constants/hardcover")
-local ICON = require("lib/constants/icons")
-local SETTING = require("lib/constants/settings")
+local HARDCOVER = require("hardcover/lib/constants/hardcover")
+local ICON = require("hardcover/lib/constants/icons")
+local SETTING = require("hardcover/lib/constants/settings")
 local VERSION = require("hardcover_version")
 
 local HardcoverMenu = {}

@@ -1,4 +1,4 @@
-local table_util = require("lib/table_util")
+local table_util = require("hardcover/lib/table_util")
 describe("table_util", function()
   describe("dig", function()
     it("fetches nested table values", function()

@@ -1,14 +1,14 @@
-local config = require("config")
+local config = require("hardcover_config")
 local logger = require("logger")
 local https = require("ssl.https")
 local ltn12 = require("ltn12")
 local json = require("json")
-local _t = require("lib/table_util")
+local _t = require("hardcover/lib/table_util")
 local Trapper = require("ui/trapper")
 local NetworkManager = require("ui/network/manager")
 local socketutil = require("socketutil")
 
-local Book = require("lib/book")
+local Book = require("hardcover/lib/book")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
 
