@@ -14,22 +14,22 @@ local Notification = require("ui/widget/notification")
 
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 
-local _t = require("lib/table_util")
-local Api = require("lib/hardcover_api")
-local Cache = require("lib/cache")
-local debounce = require("lib/debounce")
-local Hardcover = require("lib/hardcover")
-local HardcoverSettings = require("lib/hardcover_settings")
-local PageMapper = require("lib/page_mapper")
-local Scheduler = require("lib/scheduler")
-local throttle = require("lib/throttle")
-local User = require("lib/user")
+local _t = require("hardcover/lib/table_util")
+local Api = require("hardcover/lib/hardcover_api")
+local Cache = require("hardcover/lib/cache")
+local debounce = require("hardcover/lib/debounce")
+local Hardcover = require("hardcover/lib/hardcover")
+local HardcoverSettings = require("hardcover/lib/hardcover_settings")
+local PageMapper = require("hardcover/lib/page_mapper")
+local Scheduler = require("hardcover/lib/scheduler")
+local throttle = require("hardcover/lib/throttle")
+local User = require("hardcover/lib/user")
 
-local DialogManager = require("lib/ui/dialog_manager")
-local HardcoverMenu = require("lib/ui/hardcover_menu")
+local DialogManager = require("hardcover/lib/ui/dialog_manager")
+local HardcoverMenu = require("hardcover/lib/ui/hardcover_menu")
 
-local HARDCOVER = require("lib/constants/hardcover")
-local SETTING = require("lib/constants/settings")
+local HARDCOVER = require("hardcover/lib/constants/hardcover")
+local SETTING = require("hardcover/lib/constants/settings")
 
 local HardcoverApp = WidgetContainer:extend {
   name = "hardcoverappsync",

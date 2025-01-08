@@ -1,4 +1,4 @@
-local PageMapper = require("lib/page_mapper")
+local PageMapper = require("hardcover/lib/page_mapper")
 
 describe("PageMapper", function()
   describe("cachePageMap", function()

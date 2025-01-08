@@ -11,6 +11,14 @@
 * Fix crash when navigating to previous page in search menu after images have loaded
 * Fall back to less specific reading format when edition format is unavailable
 
+### 🧹 Chores
+
+* Renamed lib directory and config.lua to prevent conflicts with other plugins
+
+### ⚠️ Upgrading
+
+`config.lua` has been renamed to `hardcover_config.lua`. Make this change on your device!
+
 ## 0.0.7 (2024-12-30)
 
 ### 🚀 Added

@@ -5,12 +5,12 @@ local GestureRange = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local InputDialog = require("ui/widget/inputdialog")
 local Menu = require("ui/widget/menu")
-local SearchMenu = require("lib/ui/search_menu")
+local SearchMenu = require("hardcover/lib/ui/search_menu")
 local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
 local logger = require("logger")
-local _t = require("lib/table_util")
+local _t = require("hardcover/lib/table_util")
 
 local Screen = Device.screen
 

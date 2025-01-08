@@ -1,6 +1,6 @@
 --local HTTPClient = require("httpclient")
 local logger = require("logger")
-local getUrlContent = require("vendor/url_content")
+local getUrlContent = require("hardcover/vendor/url_content")
 local UIManager = require("ui/uimanager")
 local Trapper = require("ui/trapper")
 

@@ -1,5 +1,5 @@
-local Api = require("lib/hardcover_api")
-local User = require("lib/user")
+local Api = require("hardcover/lib/hardcover_api")
+local User = require("hardcover/lib/user")
 
 local Cache = {}
 Cache.__index = Cache

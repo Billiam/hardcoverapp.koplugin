@@ -1,5 +1,5 @@
-local SETTING = require("lib/constants/settings")
-local Api = require("lib/hardcover_api")
+local SETTING = require("hardcover/lib/constants/settings")
+local Api = require("hardcover/lib/hardcover_api")
 
 local User = {}
 

@@ -7,11 +7,11 @@ local UIManager = require("ui/uimanager")
 
 local Notification = require("ui/widget/notification")
 
-local Api = require("lib/hardcover_api")
-local Book = require("lib/book")
-local User = require("lib/user")
+local Api = require("hardcover/lib/hardcover_api")
+local Book = require("hardcover/lib/book")
+local User = require("hardcover/lib/user")
 
-local SETTING = require("lib/constants/settings")
+local SETTING = require("hardcover/lib/constants/settings")
 
 local Hardcover = {}
 Hardcover.__index = Hardcover

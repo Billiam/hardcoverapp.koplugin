@@ -5,14 +5,14 @@ local UIManager = require("ui/uimanager")
 
 local InfoMessage = require("ui/widget/infomessage")
 
-local Api = require("lib/hardcover_api")
-local Book = require("lib/book")
-local User = require("lib/user")
+local Api = require("hardcover/lib/hardcover_api")
+local Book = require("hardcover/lib/book")
+local User = require("hardcover/lib/user")
 
-local HARDCOVER = require("lib/constants/hardcover")
+local HARDCOVER = require("hardcover/lib/constants/hardcover")
 
-local JournalDialog = require("lib/ui/journal_dialog")
-local SearchDialog = require("lib/ui/search_dialog")
+local JournalDialog = require("hardcover/lib/ui/journal_dialog")
+local SearchDialog = require("hardcover/lib/ui/search_dialog")
 
 local DialogManager = {}
 DialogManager.__index = DialogManager

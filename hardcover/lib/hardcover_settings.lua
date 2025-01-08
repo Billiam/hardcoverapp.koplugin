@@ -1,7 +1,7 @@
 local KoreaderVersion = require("version")
 local LuaSettings = require("luasettings")
 
-local SETTING = require("lib/constants/settings")
+local SETTING = require("hardcover/lib/constants/settings")
 
 local HardcoverSettings = {}
 HardcoverSettings.__index = HardcoverSettings
