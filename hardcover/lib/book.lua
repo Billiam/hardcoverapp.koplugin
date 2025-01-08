@@ -45,8 +45,9 @@ function Book:parseIdentifiers(identifiers)
     if not hc and not hc_edition then
       -- strip prefix
       local str = string.gsub(line, "^[^%s]+%s*:%s*", "")
+      str = string.gsub(str, "-", "")
 
-      if str then
+      if str and string.find(str, "^%d+$") then
         local len = #str
 
         if len == 13 then
