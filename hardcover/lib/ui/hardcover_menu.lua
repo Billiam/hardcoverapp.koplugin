@@ -1,4 +1,5 @@
 local DataStorage = require("datastorage")
+local Device = require("device")
 local _ = require("gettext")
 local math = require("math")
 local os = require("os")
@@ -563,6 +564,19 @@ function HardcoverMenu:getSettingsSubMenuItems()
         local setting = self.settings:readSetting(SETTING.ALWAYS_SYNC) == true
         self.settings:updateSetting(SETTING.ALWAYS_SYNC, not setting)
       end,
+    },
+    {
+      text = "Enable wifi on demand",
+      checked_func = function()
+        return self.settings:readSetting(SETTING.ENABLE_WIFI) == true
+      end,
+      enabled_func = function()
+        return Device:hasWifiRestore()
+      end,
+      callback = function()
+        local setting = self.settings:readSetting(SETTING.ENABLE_WIFI) == true
+        self.settings:updateSetting(SETTING.ENABLE_WIFI, not setting)
+      end
     },
     {
       text = "Compatibility mode",

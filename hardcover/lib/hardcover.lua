@@ -136,9 +136,7 @@ function Hardcover:autolinkBook(book)
   end
 end
 
-function Hardcover:linkBookByIsbn()
-  local props = self.ui.document:getProps()
-  local identifiers = Book:parseIdentifiers(props.identifiers)
+function Hardcover:linkBookByIsbn(identifiers)
   if identifiers.isbn_10 or identifiers.isbn_13 then
     local user_id = User:getId()
     local book_lookup = Api:findBookByIdentifiers({
@@ -154,10 +152,7 @@ function Hardcover:linkBookByIsbn()
   end
 end
 
-function Hardcover:linkBookByHardcover()
-  local props = self.ui.document:getProps()
-
-  local identifiers = Book:parseIdentifiers(props.identifiers)
+function Hardcover:linkBookByHardcover(identifiers)
   if identifiers.book_slug or identifiers.edition_id then
     local user_id = User:getId()
     local book_lookup = Api:findBookByIdentifiers(
@@ -184,17 +179,30 @@ function Hardcover:tryAutolink()
     return
   end
 
+  local props = self.ui.document:getProps()
+
+  local identifiers = Book:parseIdentifiers(props.identifiers)
+  if ((identifiers.isbn_10 or identifiers.isbn_13) and self.settings:readSetting(SETTING.LINK_BY_ISBN))
+      or ((identifiers.book_slug or identifiers.edition_id) and self.settings:readSetting(SETTING.LINK_BY_HARDCOVER))
+      or (props.title and self.settings:readSetting(SETTING.LINK_BY_TITLE)) then
+    self.wifi:withWifi(function()
+      self:_runAutolink(identifiers)
+    end)
+  end
+end
+
+function Hardcover:_runAutolink(identifiers)
   local linked = false
   if self.settings:readSetting(SETTING.LINK_BY_ISBN) then
-    linked = self:linkBookByIsbn()
+    linked = self:linkBookByIsbn(identifiers)
   end
 
   if not linked and self.settings:readSetting(SETTING.LINK_BY_HARDCOVER) then
-    linked = self:linkBookByHardcover()
+    linked = self:linkBookByHardcover(identifiers)
   end
 
   if not linked and self.settings:readSetting(SETTING.LINK_BY_TITLE) then
-    linked = self:linkBookByTitle()
+    self:linkBookByTitle()
   end
 end
 
