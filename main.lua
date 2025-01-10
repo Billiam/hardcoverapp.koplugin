@@ -16,6 +16,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 
 local _t = require("hardcover/lib/table_util")
 local Api = require("hardcover/lib/hardcover_api")
+local AutoWifi = require("hardcover/lib/auto_wifi")
 local Cache = require("hardcover/lib/cache")
 local debounce = require("hardcover/lib/debounce")
 local Hardcover = require("hardcover/lib/hardcover")
@@ -109,12 +110,16 @@ function HardcoverApp:init()
     state = self.state,
     ui = self.ui,
   }
+  self.wifi = AutoWifi:new {
+    settings = self.settings
+  }
   self.hardcover = Hardcover:new {
     cache = self.cache,
     dialog_manager = self.dialog_manager,
     settings = self.settings,
     state = self.state,
     ui = self.ui,
+    wifi = self.wifi
   }
 
   self.menu = HardcoverMenu:new {
@@ -214,10 +219,12 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
   end
 
   local immediate_update = function()
-    local result = Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
-    if result then
-      self.state.book_status = result
-    end
+    self.wifi:withWifi(function()
+      local result = Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
+      if result then
+        self.state.book_status = result
+      end
+    end)
   end
 
   local trapped_update = function()
@@ -342,9 +349,14 @@ end
 
 function HardcoverApp:onNetworkDisconnecting()
   --logger.warn("HARDCOVER on disconnecting")
+  if self.settings:readSetting(SETTING.ENABLE_WIFI) then
+    return
+  end
+
   self:cancelPendingUpdates()
 
   Scheduler:clear()
+  self.state.read_cache_started = false
 
   if self.page_update_pending and self.ui.document and self.state.book_status.id and self.settings:syncEnabled() and self.settings:trackByTime() then
     local mapped_page = self.page_mapper:getMappedPage(
@@ -359,7 +371,7 @@ end
 
 function HardcoverApp:onNetworkConnected()
   --logger.warn("HARDCOVER on connected")
-  if self.ui.document and self.settings:syncEnabled() then
+  if self.ui.document and self.settings:syncEnabled() and not self.state.read_cache_started then
     self:startReadCache()
   end
 end
@@ -407,15 +419,19 @@ function HardcoverApp:onEndOfBook()
         end
       end
       if status == "complete" then
-        marker()
+        self.wifi:withWifi(function()
+          marker()
+        end)
       end
     end)
   else
-    marker()
-    UIManager:show(InfoMessage:new {
-      text = _("Hardcover status saved"),
-      timeout = 2
-    })
+    self.wifi:withWifi(function()
+      marker()
+      UIManager:show(InfoMessage:new {
+        text = _("Hardcover status saved"),
+        timeout = 2
+      })
+    end)
   end
 end
 
@@ -438,17 +454,25 @@ function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
   if status then
     local book_id = self.settings:readBookSetting(file, "book_id")
     local user_book = Api:findUserBook(book_id, User:getId()) or {}
-    self.cache:updateBookStatus(file, status, user_book.privacy_setting_id)
+    self.wifi:withWifi(function()
+      self.cache:updateBookStatus(file, status, user_book.privacy_setting_id)
 
-    UIManager:show(InfoMessage:new {
-      text = _("Hardcover status saved"),
-      timeout = 2
-    })
+      UIManager:show(InfoMessage:new {
+        text = _("Hardcover status saved"),
+        timeout = 2
+      })
+    end)
   end
 end
 
 function HardcoverApp:startReadCache()
   --logger.warn("HARDCOVER start read cache")
+  if self.state.read_cache_started then
+    --logger.warn("HARDCOVER Cache already started")
+    return
+  end
+
+  self.state.read_cache_started = true
   if not self.ui.document then
     --logger.warn("HARDCOVER read cache fired outside of document")
     return
@@ -463,22 +487,24 @@ function HardcoverApp:startReadCache()
   end
 
   cancel = Scheduler:withRetries(6, 3, function(success, fail)
-      if not NetworkManager:isConnected() then
-        return restart()
-      end
-
       Trapper:wrap(function()
         local book_settings = self.settings:readBookSettings(self.ui.document.file) or {}
         --logger.warn("HARDCOVER", book_settings)
         if book_settings.book_id and not self.state.book_status.id then
           if self.settings:syncEnabled() then
-            local err = self.cache:cacheUserBook()
-            --if err then
-            --logger.warn("HARDCOVER cache error", err)
-            --end
-            if err and err.completed == false then
-              return fail(err)
-            end
+            self.wifi:withWifi(function()
+              if not NetworkManager:isConnected() then
+                return restart()
+              end
+
+              local err = self.cache:cacheUserBook()
+              --if err then
+              --logger.warn("HARDCOVER cache error", err)
+              --end
+              if err and err.completed == false then
+                return fail(err)
+              end
+            end)
           end
         else
           self.hardcover:tryAutolink()
