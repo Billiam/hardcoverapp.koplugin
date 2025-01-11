@@ -39,4 +39,26 @@ describe("table_util", function()
       assert.is_false(table_util.contains(t, { 1, 2, 3 }))
     end)
   end)
+
+  describe("binSearch", function()
+    it("returns nil for an empty table", function()
+      assert.is_nil(table_util.binSearch({}, 5))
+    end)
+
+    it("returns first index over search value for 1 element table", function()
+      local t = { 5 }
+      assert.is_equal(1, table_util.binSearch(t, 2))
+    end)
+
+    it("returns first index over search value for 2 element table", function()
+      local t = { 5, 10 }
+      assert.is_equal(2, table_util.binSearch(t, 7))
+      assert.is_equal(1, table_util.binSearch(t, 2))
+    end)
+
+    it("returns nil if all values are below the search value", function()
+      local t = { 5, 10, 15 }
+      assert.is_nil(table_util.binSearch(t, 20))
+    end)
+  end)
 end)
