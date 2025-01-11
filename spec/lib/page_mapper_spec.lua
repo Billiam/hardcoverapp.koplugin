@@ -146,6 +146,20 @@ describe("PageMapper", function()
 
       assert.are.equal(expected, page_map:getMappedPage(current_page, document_pages, canonical_pages))
     end)
+
+    describe("when local page exceeds mapped pages", function()
+      it("it returns the max canonical page", function()
+        local page_map = PageMapper:new {
+          state = {
+            page_map = {
+              [1] = 99
+            }
+          }
+        }
+
+        assert.are.equal(page_map:getMappedPage(2, 100, 1000), 1000)
+      end)
+    end)
   end)
 
   describe("getMappedPercent", function()
