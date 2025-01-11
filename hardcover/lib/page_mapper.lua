@@ -6,10 +6,13 @@ function PageMapper:new(o)
 end
 
 function PageMapper:getMappedPage(raw_page, document_pages, remote_pages)
-  local mapped_page = self.state.page_map and self.state.page_map[raw_page]
-
-  if mapped_page then
-    return mapped_page
+  if self.state.page_map then
+    local mapped_page = self.state.page_map[raw_page]
+    if mapped_page then
+      return mapped_page
+    elseif raw_page > #self.state.page_map then
+      return remote_pages
+    end
   end
 
   if remote_pages and document_pages then
