@@ -328,6 +328,7 @@ function HardcoverApp:onDocumentClose()
   UIManager:unschedule(self.startCacheRead)
 
   self:cancelPendingUpdates()
+  self.state.read_cache_started = false
 
   if not self.state.book_status.id and not self.settings:syncEnabled() then
     return
