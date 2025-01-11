@@ -4,8 +4,6 @@ local Device = require("device")
 local logger = require("logger")
 
 local NetworkMgr = require("ui/network/manager")
-local UIManager = require("ui/uimanager")
-local Notification = require("ui/widget/notification")
 
 local AutoWifi = {
   connection_pending = false
