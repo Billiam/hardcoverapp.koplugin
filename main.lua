@@ -349,6 +349,19 @@ function HardcoverApp:onDocumentClose()
   self.state.page_map = nil
 end
 
+function HardcoverApp:onSuspend()
+  self:cancelPendingUpdates()
+
+  Scheduler:clear()
+  self.state.read_cache_started = false
+end
+
+function HardcoverApp:onResume()
+  if self.settings:readSetting(SETTING.ENABLE_WIFI) and self.ui.document and self.settings:syncEnabled() then
+    UIManager:scheduleIn(2, self.startReadCache, self)
+  end
+end
+
 function HardcoverApp:onNetworkDisconnecting()
   --logger.warn("HARDCOVER on disconnecting")
   if self.settings:readSetting(SETTING.ENABLE_WIFI) then
@@ -474,11 +487,12 @@ function HardcoverApp:startReadCache()
     return
   end
 
-  self.state.read_cache_started = true
   if not self.ui.document then
     --logger.warn("HARDCOVER read cache fired outside of document")
     return
   end
+
+  self.state.read_cache_started = true
 
   local cancel
 
