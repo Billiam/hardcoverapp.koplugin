@@ -10,6 +10,7 @@ local T = require("ffi/util").template
 local Font = require("ui/font")
 local UIManager = require("ui/uimanager")
 
+local UpdateDoubleSpinWidget = require("hardcover/lib/ui/update_double_spin_widget")
 local InfoMessage = require("ui/widget/infomessage")
 local SpinWidget = require("ui/widget/spinwidget")
 
@@ -312,27 +313,57 @@ function HardcoverMenu:getStatusSubMenuItems()
       callback = function(menu_instance)
         local reads = self.state.book_status.user_book_reads
         local current_read = reads and reads[#reads]
-        local current_page = current_read and current_read.progress_pages or 0
-        local max_pages = self.settings:pages()
+        local last_hardcover_page = current_read and current_read.progress_pages or 0
 
-        local spinner = SpinWidget:new {
-          value = current_page,
-          value_min = 0,
-          value_max = max_pages,
-          value_step = 1,
-          value_hold_step = 20,
+        local document_page = self.ui:getCurrentPage()
+        local document_pages = self.ui.document:getPageCount()
+
+        local remote_pages = self.settings:pages()
+        local mapped_page = self.page_mapper:getMappedPage(document_page, document_pages, remote_pages)
+
+        local left_text = "Edition"
+        if last_hardcover_page > 0 then
+          left_text = left_text .. ": was " .. last_hardcover_page
+        end
+
+        local spinner = UpdateDoubleSpinWidget:new {
+          ok_always_enabled = true,
+
+          left_text = left_text,
+          left_value = mapped_page,
+          left_min = 0,
+          left_max = remote_pages,
+          left_step = 1,
+          left_hold_step = 20,
+
+          right_text = "Local page",
+          right_value = document_page,
+          right_min = 0,
+          right_max = document_pages,
+          right_step = 1,
+          right_hold_step = 20,
+
+          update_callback = function(new_edition_page, new_document_page, edition_page_changed)
+            if edition_page_changed then
+              local new_mapped_page = self.page_mapper:getUnmappedPage(new_edition_page, document_pages, remote_pages)
+              return new_edition_page, new_mapped_page
+            else
+              local new_mapped_page = self.page_mapper:getMappedPage(new_document_page, document_pages, remote_pages)
+              return new_mapped_page, new_document_page
+            end
+          end,
           ok_text = _("Set page"),
           title_text = _("Set current page"),
-          callback = function(spin)
-            local page = spin.value
+
+          callback = function(edition_page, _document_page)
             local result
 
             if current_read then
-              result = Api:updatePage(current_read.id, current_read.edition_id, page,
+              result = Api:updatePage(current_read.id, current_read.edition_id, edition_page,
                 current_read.started_at)
             else
               local start_date = os.date("%Y-%m-%d")
-              result = Api:createRead(self.state.book_status.id, self.state.book_status.edition_id, page,
+              result = Api:createRead(self.state.book_status.id, self.state.book_status.edition_id, edition_page,
                 start_date)
             end
 

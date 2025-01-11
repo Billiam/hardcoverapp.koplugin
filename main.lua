@@ -128,6 +128,7 @@ function HardcoverApp:init()
     cache = self.cache,
     dialog_manager = self.dialog_manager,
     hardcover = self.hardcover,
+    page_mapper = self.page_mapper,
     settings = self.settings,
     state = self.state,
     ui = self.ui,
