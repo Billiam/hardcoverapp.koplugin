@@ -29,7 +29,12 @@ end
 
 function TableUtil.binSearch(t, value)
   local start_i = 1
-  local end_i = #t
+  local len = #t
+  local end_i = len
+
+  if end_i == 0 then
+    return
+  end
 
   while start_i <= end_i do
     local mid_i = math.floor((start_i + end_i) / 2)
@@ -39,6 +44,7 @@ function TableUtil.binSearch(t, value)
       while t[mid_i] == value do
         mid_i = mid_i - 1
       end
+
       return mid_i + 1
     end
 
@@ -49,7 +55,9 @@ function TableUtil.binSearch(t, value)
     end
   end
 
-  return start_i
+  if start_i <= len then
+    return start_i
+  end
 end
 
 return TableUtil
