@@ -1,8 +1,20 @@
+local _t = require("hardcover/lib/table_util")
+
 local PageMapper = {}
 PageMapper.__index = PageMapper
 
 function PageMapper:new(o)
   return setmetatable(o or {}, self)
+end
+
+function PageMapper:getUnmappedPage(remote_page, document_pages, remote_pages)
+  local document_page = self.state.page_map and _t.binSearch(self.state.page_map, remote_page)
+
+  if not document_page then
+    document_page = math.floor((remote_page / remote_pages) * document_pages)
+  end
+
+  return document_page
 end
 
 function PageMapper:getMappedPage(raw_page, document_pages, remote_pages)

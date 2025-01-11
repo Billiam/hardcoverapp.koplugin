@@ -162,6 +162,54 @@ describe("PageMapper", function()
     end)
   end)
 
+  describe("getUnmappedPage", function()
+    describe("when there is a page map", function()
+      it("finds the first matching page for a canonical page", function()
+        local page_map = PageMapper:new {
+          state = {
+            page_map = {
+              [1] = 1,
+              [2] = 5,
+              [3] = 5,
+              [4] = 5,
+              [5] = 8,
+              [6] = 9,
+              [7] = 10,
+            }
+          }
+        }
+
+        assert.are.equal(page_map:getUnmappedPage(5, 100, 100), 2)
+      end)
+
+      describe("when there is no exact match", function()
+        it("returns the first page over the canonical page", function()
+          local page_map = PageMapper:new {
+            state = {
+              page_map = {
+                [1] = 1,
+                [2] = 2,
+                [3] = 5,
+                [4] = 6,
+                [5] = 7,
+              }
+            }
+          }
+
+          assert.are.equal(page_map:getUnmappedPage(3, 100, 100), 3)
+        end)
+      end)
+    end)
+
+    describe("when there is no page map", function()
+      it("returns the page as a percentage of the total local pages", function()
+        local page_map = PageMapper:new { state = {} }
+
+        assert.are.equal(page_map:getUnmappedPage(50, 1000, 100), 500)
+      end)
+    end)
+  end)
+
   describe("getMappedPercent", function()
     it("returns the mapped page as a percentage of the canonical total pages", function()
       local page_map = PageMapper:new {
