@@ -23,25 +23,19 @@ function AutoWifi:withWifi(callback)
   end
 
   if self.settings:readSetting(SETTING.ENABLE_WIFI) and not NetworkMgr.pending_connection and Device:hasWifiRestore() then
-    --UIManager:show(Notification:new {
-    --  text = "Enabling wifi"
-    --})
+    --logger.warn("HARDCOVER enabling wifi")
 
     NetworkMgr:restoreWifiAsync()
     NetworkMgr:scheduleConnectivityCheck(function()
       self.connection_pending = false
-      UIManager:show(Notification:new {
-        text = "Connection active"
-      })
+      --logger.warn("HARDCOVER wifi enabled")
 
       callback()
 
       -- TODO: schedule turn off wifi, debounce
       NetworkMgr:turnOffWifi()
       --NetworkMgr:turnOffWifi(function()
-      --  UIManager:show(Notification:new {
-      --    text = "Disabled wifi"
-      --  })
+      --  logger.warn("HARDCOVER disabling wifi")
       --end)
     end)
   end
