@@ -22,9 +22,14 @@ function AutoWifi:withWifi(callback)
 
   if self.settings:readSetting(SETTING.ENABLE_WIFI) and not NetworkMgr.pending_connection and Device:hasWifiRestore() then
     --logger.warn("HARDCOVER enabling wifi")
+    local original_on = NetworkMgr.wifi_was_on
 
     NetworkMgr:restoreWifiAsync()
     NetworkMgr:scheduleConnectivityCheck(function()
+      -- restore original "was on" state to prevent wifi being restored automatically after suspend
+      NetworkMgr.wifi_was_on = original_on
+      G_reader_settings:saveSetting("wifi_was_on", original_on)
+
       self.connection_pending = false
       --logger.warn("HARDCOVER wifi enabled")
 
