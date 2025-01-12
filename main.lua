@@ -385,8 +385,9 @@ function HardcoverApp:onNetworkDisconnecting()
 end
 
 function HardcoverApp:onNetworkConnected()
-  --logger.warn("HARDCOVER on connected")
   if self.ui.document and self.settings:syncEnabled() and not self.state.read_cache_started then
+    --logger.warn("HARDCOVER on connected", self.state.read_cache_started)
+
     self:startReadCache()
   end
 end
@@ -496,18 +497,22 @@ function HardcoverApp:startReadCache()
 
   local cancel
 
-  local restart = function()
+  local restart = function(delay)
     --logger.warn("HARDCOVER restart cache fetch")
+    delay = delay or 60
     cancel()
-    UIManager:scheduleIn(60, self.startReadCache, self)
+    self.state.read_cache_started = false
+    UIManager:scheduleIn(delay, self.startReadCache, self)
   end
 
   cancel = Scheduler:withRetries(6, 3, function(success, fail)
       Trapper:wrap(function()
         local book_settings = self.settings:readBookSettings(self.ui.document.file) or {}
         --logger.warn("HARDCOVER", book_settings)
-        if book_settings.book_id and not self.state.book_status.id then
-          if self.settings:syncEnabled() then
+        if book_settings.book_id then
+          if self.state.book_status.id then
+            return success()
+          else
             self.wifi:withWifi(function()
               if not NetworkManager:isConnected() then
                 return restart()
@@ -520,18 +525,25 @@ function HardcoverApp:startReadCache()
               if err and err.completed == false then
                 return fail(err)
               end
+
+              success()
             end)
           end
         else
           self.hardcover:tryAutolink()
+          if self.settings:bookLinked() and self.settings:syncEnabled() then
+            return restart(2)
+          end
         end
-        success()
       end)
     end,
 
     function()
-      --logger.warn("HARDCOVER enabling page turns")
-      self.state.process_page_turns = true
+      if self.settings:syncEnabled() then
+        --logger.warn("HARDCOVER enabling page turns")
+
+        self.state.process_page_turns = true
+      end
     end,
 
     function()
