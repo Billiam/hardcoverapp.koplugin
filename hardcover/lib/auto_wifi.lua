@@ -22,6 +22,7 @@ function AutoWifi:withWifi(callback)
 
   if self.settings:readSetting(SETTING.ENABLE_WIFI) and not NetworkMgr.pending_connection and Device:hasWifiRestore() then
     --logger.warn("HARDCOVER enabling wifi")
+
     local original_on = NetworkMgr.wifi_was_on
 
     NetworkMgr:restoreWifiAsync()
@@ -36,10 +37,12 @@ function AutoWifi:withWifi(callback)
       callback()
 
       -- TODO: schedule turn off wifi, debounce
-      NetworkMgr:turnOffWifi()
-      --NetworkMgr:turnOffWifi(function()
-      --  logger.warn("HARDCOVER disabling wifi")
-      --end)
+      NetworkMgr:turnOffWifi(function()
+        -- explicitly disable wifi was on
+        NetworkMgr.wifi_was_on = false
+        G_reader_settings:saveSetting("wifi_was_on", false)
+        --logger.warn("HARDCOVER disabling wifi")
+      end)
     end)
   end
 end
