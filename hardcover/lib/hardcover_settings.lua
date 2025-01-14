@@ -1,6 +1,7 @@
 local KoreaderVersion = require("version")
 local LuaSettings = require("luasettings")
 
+local _t = require("hardcover/lib/table_util")
 local SETTING = require("hardcover/lib/constants/settings")
 
 local HardcoverSettings = {}
@@ -37,6 +38,10 @@ function HardcoverSettings:readBookSettings(filename)
 end
 
 function HardcoverSettings:readBookSetting(filename, key)
+  if not filename then
+    return
+  end
+
   local settings = self:readBookSettings(filename)
   if settings then
     return settings[key]
@@ -114,23 +119,31 @@ function HardcoverSettings:bookLinked()
   return self:getLinkedBookId() ~= nil
 end
 
+function HardcoverSettings:getFilePath()
+  return _t.dig(self, "ui", "document", "file")
+end
+
 function HardcoverSettings:getLinkedTitle()
-  return self:readBookSetting(self.ui.document.file, "title")
+  return self:readBookSetting(self:getFilePath(), "title")
 end
 
 function HardcoverSettings:getLinkedBookId()
-  return self:readBookSetting(self.ui.document.file, "book_id")
+  return self:readBookSetting(self:getFilePath(), "book_id")
 end
 
 function HardcoverSettings:getLinkedEditionFormat()
-  return self:readBookSetting(self.ui.document.file, "edition_format")
+  return self:readBookSetting(self:getFilePath(), "edition_format")
 end
 
 function HardcoverSettings:getLinkedEditionId()
-  return self:readBookSetting(self.ui.document.file, "edition_id")
+  return self:readBookSetting(self:getFilePath(), "edition_id")
 end
 
 function HardcoverSettings:fileSyncEnabled(file)
+  if not file then
+    return false
+  end
+
   local sync_value = self:readBookSetting(file, "sync")
   if sync_value == nil then
     sync_value = self.settings:readSetting(SETTING.ALWAYS_SYNC)
@@ -139,7 +152,7 @@ function HardcoverSettings:fileSyncEnabled(file)
 end
 
 function HardcoverSettings:syncEnabled()
-  return self:fileSyncEnabled(self.ui.document.file)
+  return self:fileSyncEnabled(self:getFilePath())
 end
 
 function HardcoverSettings:autolinkEnabled()
@@ -153,7 +166,7 @@ function HardcoverSettings:autolinkEnabled()
 end
 
 function HardcoverSettings:pages()
-  return self:readBookSetting(self.ui.document.file, "pages")
+  return self:readBookSetting(self:getFilePath(), "pages")
 end
 
 function HardcoverSettings:trackFrequency()
