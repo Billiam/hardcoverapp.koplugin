@@ -5,12 +5,13 @@
 ### 🚀 Added
 
 * Display edition language and series in book searches
-* Add option to turn on/off wifi automatically for background updates on some devices
-* Updated manual page update dialog to allow updating by document page or hardcover page with synchronized display
+* Add option to turn on/off wifi automatically for background updates on some devices where possible
+* Changed manual page update dialog to allow updating by document page or hardcover page with synchronized display
 
 ### 🩹 Fixes
 
 * Fix crash when navigating to previous page in search menu after images have loaded
+* Fix crash related to book settings when active document has been closed
 * Fall back to less specific reading format when edition format is unavailable
 * Fix ISBN values with hyphens being ignored by automatic book linking
 * Fix pages exceeding a document's page map being treated as lower numbers than previous page
