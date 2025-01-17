@@ -110,10 +110,13 @@ when a new document is opened, if no book has been linked already. These options
 * **Automatically link by title**: If the document metadata contains a title, choose the first book returned from
   hardcover search results for that title and document author (if available).
 
-### Track progress frequency
+### Track progress settings
 
-By default, no more than one update per minute will be sent to Hardcover for page turn events. If you don't need updates
-this frequently, and to save battery, you can decrease this frequency further.
+By default, (when enabled) updates will be sent to hardcover at a frequency you can select, no more often than once per
+minute. If you don't need updates this frequently, and to preserve battery, you can decrease this frequency further.
+
+You can also choose to update based on your percentage progress through a book. With this option, an update will be sent
+when you cross a percentage threshold (for examppe, every 10% completed).
 
 ### Always track progress by default
 
@@ -122,6 +125,20 @@ option
 enabled by automatically. You can still turn off `Track progress` on a per-document basis when this setting is enabled.
 
 Books still must be linked (manually or automatically) to send updates to Hardcover.
+
+## Enable wifi on demand
+
+On some devices, wifi can be enabled on demand without interruption. When this feature is enabled, wifi will be enabled
+automatically before some types of background API requests (namely updating the initial application cache, and updating
+your reading progress), and then disabled afterward.
+
+This can improve battery life significantly on some devices, particularly with infrequent page updates.
+
+This feature is not used for all network requests. If wifi has not been manually disabled the folling will not work:  
+
+* fetching or updating your reading status manually
+* adding a note or quote journal entry
+* manually updating your reading progress from the menu
 
 ### Compatibility mode
 
