@@ -507,6 +507,10 @@ function HardcoverApp:startReadCache()
 
   cancel = Scheduler:withRetries(6, 3, function(success, fail)
       Trapper:wrap(function()
+        if not self.ui.document then
+          -- fail, but cancel retries
+          return success()
+        end
         local book_settings = self.settings:readBookSettings(self.ui.document.file) or {}
         --logger.warn("HARDCOVER", book_settings)
         if book_settings.book_id then
