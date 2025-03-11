@@ -456,7 +456,7 @@ function HardcoverApp:syncFileUpdates(filename)
 end
 
 function HardcoverApp:onDocSettingsItemsChanged(file, doc_settings)
-  if not self:syncFileUpdates(file) then
+  if not self:syncFileUpdates(file) or not doc_settings then
     return
   end
 
