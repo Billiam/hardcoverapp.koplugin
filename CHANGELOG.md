@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### 🩹 Fixes
+
+* Always show book format and reader count in list view
+
 ## 0.0.8 (2025-01-16)
 
 ### 🚀 Added

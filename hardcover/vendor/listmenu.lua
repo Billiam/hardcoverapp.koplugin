@@ -414,23 +414,20 @@ function ListMenuItem:update()
       local wright_width = 0
       local wright
 
-      if not BookInfoManager:getSetting("hide_file_info") then
-        local wfileinfo = TextWidget:new{
-          text = fileinfo_str,
-          face = Font:getFace("cfont", fontsize_info),
-          fgcolor = fgcolor,
-        }
-        table.insert(wright_items, wfileinfo)
-      end
+      -- skip file info visibility setting
+      local wfileinfo = TextWidget:new{
+        text = fileinfo_str,
+        face = Font:getFace("cfont", fontsize_info),
+        fgcolor = fgcolor,
+      }
+      table.insert(wright_items, wfileinfo)
 
-      if not BookInfoManager:getSetting("hide_page_info") then
-        local wpageinfo = TextWidget:new{
-          text = pages_str,
-          face = Font:getFace("cfont", fontsize_info),
-          fgcolor = fgcolor,
-        }
-        table.insert(wright_items, wpageinfo)
-      end
+      local wpageinfo = TextWidget:new{
+        text = pages_str,
+        face = Font:getFace("cfont", fontsize_info),
+        fgcolor = fgcolor,
+      }
+      table.insert(wright_items, wpageinfo)
 
       if #wright_items > 0 then
         for i, w in ipairs(wright_items) do
