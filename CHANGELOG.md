@@ -5,6 +5,10 @@
 ### 🩹 Fixes
 
 * Always show book format and reader count in list view
+* Fix potential crash when document is no longer available when fetching book cache
+* Fix crash at some font sizes when using compatibility mode and searching for books with long author names
+* Fix compatibility mode not displaying authors at some font sizes
+* Fix compatibility mode not displaying edition type at some font sizes
 
 ## 0.0.8 (2025-01-16)
 
