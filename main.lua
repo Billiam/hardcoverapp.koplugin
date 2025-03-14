@@ -104,14 +104,15 @@ function HardcoverApp:init()
     state = self.state,
     ui = self.ui,
   }
+  self.wifi = AutoWifi:new {
+    settings = self.settings
+  }
   self.dialog_manager = DialogManager:new {
     page_mapper = self.page_mapper,
     settings = self.settings,
     state = self.state,
     ui = self.ui,
-  }
-  self.wifi = AutoWifi:new {
-    settings = self.settings
+    wifi = self.wifi
   }
   self.hardcover = Hardcover:new {
     cache = self.cache,

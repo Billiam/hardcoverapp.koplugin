@@ -107,7 +107,7 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
   end
 
   mapped_page = mapped_page or self.page_mapper:getMappedPage(page, document:getPageCount(), remote_pages)
-
+  local wifi_was_off = false
   local dialog
   dialog = JournalDialog:new {
     input = text,
@@ -123,7 +123,14 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
       if result then
         UIManager:nextTick(function()
           UIManager:close(dialog)
+
+          if wifi_was_off then
+            UIManager:nextTick(function()
+              self.wifi:wifiDisablePrompt()
+            end)
+          end
         end)
+
         return true, _(event_type .. " saved")
       else
         return false, _(event_type .. " could not be saved")
@@ -150,13 +157,27 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
           )
         end
       )
+    end,
+
+    close_callback = function()
+      local logger = require("logger")
+      logger.warn("Close callback")
+      if wifi_was_off then
+        UIManager:nextTick(function()
+          self.wifi:wifiDisablePrompt()
+        end)
+      end
     end
   }
   -- scroll to the bottom instead of overscroll displayed
   dialog._input_widget:scrollToBottom()
 
-  UIManager:show(dialog)
-  dialog:onShowKeyboard()
+  self.wifi:wifiPrompt(function(wifi_enabled)
+    wifi_was_off = wifi_enabled
+
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+  end)
 end
 
 function DialogManager:showError(err)
