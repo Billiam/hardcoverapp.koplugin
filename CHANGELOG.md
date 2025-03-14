@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 🚀 Added
+
+* Prompt to turn wifi on if needed before opening journal dialog
+
 ### 🩹 Fixes
 
 * Always show book format and reader count in list view
