@@ -73,7 +73,6 @@ function AutoWifi:wifiDisablePrompt()
   if self.settings:readSetting(SETTING.ENABLE_WIFI) and Device:hasWifiRestore() then
     self:wifiDisableSilent()
   else
-    logger.warn("Turning off wifi")
     NetworkMgr:toggleWifiOff()
   end
 end

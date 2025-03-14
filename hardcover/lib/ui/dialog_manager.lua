@@ -160,8 +160,6 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
     end,
 
     close_callback = function()
-      local logger = require("logger")
-      logger.warn("Close callback")
       if wifi_was_off then
         UIManager:nextTick(function()
           self.wifi:wifiDisablePrompt()
