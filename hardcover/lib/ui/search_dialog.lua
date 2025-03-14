@@ -65,13 +65,13 @@ function HardcoverSearchDialog:createListItem(book, active_item)
     highlight = active,
   }
 
-
   if not book.edition_id and _t.dig(book, "book_series", 1, "position") then
     result.series = book.book_series[1].series.name
     if book.book_series[1].position then
       result.series = result.series .. " #" .. book.book_series[1].position
     end
   end
+
   if book.language and book.language.code2 then
     if self.series then
       result.series = " - " .. book.language.code2
@@ -79,7 +79,6 @@ function HardcoverSearchDialog:createListItem(book, active_item)
       result.series = book.language.language
     end
   end
-
 
   if book.pages then
     result.pages = book.pages
@@ -98,9 +97,11 @@ function HardcoverSearchDialog:createListItem(book, active_item)
     result.text = result.title
     result.dim = result.highlight
     if book.edition_id then
-      result.post_text = book.filetype
+      result.text = result.text .. " - " .. book.filetype
     else
-      result.post_text = result.authors
+      if result.authors and result.authors ~= "" then
+        result.text = result.text .. " - " .. result.authors
+      end
     end
   end
 
@@ -146,6 +147,7 @@ function HardcoverSearchDialog:init()
 
   self.menu = menu_class:new {
     single_line = false,
+    multilines_show_more_text = true,
     title = self.title or "Select book",
     fullscreen = true,
     item_table = self:parseItems(self.items, self.active_item),
