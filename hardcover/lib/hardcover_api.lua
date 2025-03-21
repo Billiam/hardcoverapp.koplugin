@@ -4,16 +4,20 @@ local https = require("ssl.https")
 local ltn12 = require("ltn12")
 local json = require("json")
 local _t = require("hardcover/lib/table_util")
+local T = require("ffi/util").template
 local Trapper = require("ui/trapper")
 local NetworkManager = require("ui/network/manager")
 local socketutil = require("socketutil")
 
 local Book = require("hardcover/lib/book")
+local VERSION = require("hardcover_version")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
 
 local headers = {
   ["Content-Type"] = "application/json",
+  ["User-Agent"] = T("hardcoverapp.koplugin/%1 (https://github.com/billiam/hardcoverapp.koplugin)",
+    table.concat(VERSION, ".")),
   Authorization = "Bearer " .. config.token
 }
 
