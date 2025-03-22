@@ -134,10 +134,9 @@ your reading progress), and then disabled afterward.
 
 This can improve battery life significantly on some devices, particularly with infrequent page updates.
 
-This feature is not used for all network requests. If wifi has not been manually disabled the folling will not work:  
+This feature is not used for all network requests. If wifi has not been manually enabled the following will not work:
 
 * fetching or updating your reading status manually
-* adding a note or quote journal entry
 * manually updating your reading progress from the menu
 
 ### Compatibility mode
