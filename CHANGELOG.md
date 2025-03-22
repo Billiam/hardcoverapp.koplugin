@@ -4,7 +4,11 @@
 
 ### 🚀 Added
 
-* Prompt to turn wifi on if needed before opening journal dialog
+* Prompt to enable wifi if needed before opening journal dialog
+
+### 🧹 Chores
+
+* Include user agent in requests to hardcover API
 
 ### 🩹 Fixes
 
