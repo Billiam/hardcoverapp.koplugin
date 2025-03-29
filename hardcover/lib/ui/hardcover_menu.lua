@@ -40,6 +40,9 @@ local privacy_labels = {
 
 function HardcoverMenu:mainMenu()
   return {
+    enabled_func = function()
+      return self.enabled
+    end,
     text_func = function()
       return self.settings:bookLinked() and _("Hardcover: " .. ICON.LINK) or _("Hardcover")
     end,

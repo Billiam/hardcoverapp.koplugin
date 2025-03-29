@@ -112,7 +112,7 @@ function HardcoverApi:query(query, parameters)
 
   if completed and content then
     local code, response = string.match(content, "^([^:]*):(.*)")
-    if string.find(code, "^2%d%d") then
+    if string.find(code, "^%d%d%d") then
       local data = json.decode(response, json.decode.simple)
       if data.data then
         return data.data
@@ -126,7 +126,7 @@ function HardcoverApi:query(query, parameters)
 
         return nil, { errors = err }
       end
-    elseif not string.find(code, "^%d%d%d$") then
+    else
       return nil, { completed = false }
     end
   else

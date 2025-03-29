@@ -14,7 +14,8 @@ local Hardcover = {
     TAG = "Tag",
   },
   ERROR = {
-    JWT = "invalid-jwt"
+    JWT = "invalid-jwt",
+    TOKEN = "Unable to verify token",
   }
 }
 

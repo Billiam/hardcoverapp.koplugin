@@ -87,7 +87,7 @@ function HardcoverApp:init()
       return
     end
 
-    if _t.dig(err, "extensions", "code") == HARDCOVER.ERROR.JWT or (err.message and string.find(err.message, "JWT")) then
+    if err == HARDCOVER.ERROR.TOKEN or _t.dig(err, "extensions", "code") == HARDCOVER.ERROR.JWT or (err.message and string.find(err.message, "JWT")) then
       self:disable()
       UIManager:show(InfoMessage:new {
         text = "Your Hardcover API key is not valid or has expired. Please update it and restart",
