@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### 🩹 Fixes
+
+* Fix missing invalid API key warning after request failure
+
 ## 0.1.0 (2025-03-21)
 
 ### 🚀 Added
