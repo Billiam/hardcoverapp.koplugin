@@ -8,7 +8,7 @@ local _ = require("gettext")
 local ImageLoader = require("hardcover/lib/ui/image_loader")
 local RenderImage = require("ui/renderimage")
 
-local BookInfoManager = require("bookinfomanager")
+--local BookInfoManager = require("bookinfomanager")
 
 -- This is a kind of "base class" for both MosaicMenu and ListMenu.
 -- It implements the common code shared by these, mostly the non-UI
@@ -253,9 +253,9 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
             text = bookinfo.ignore_cover and _("Unignore cover") or _("Ignore cover"),
             enabled = bookinfo.has_cover and true or false,
             callback = function()
-              BookInfoManager:setBookInfoProperties(file, {
-                ["ignore_cover"] = not bookinfo.ignore_cover and 'Y' or false,
-              })
+              --BookInfoManager:setBookInfoProperties(file, {
+              --  ["ignore_cover"] = not bookinfo.ignore_cover and 'Y' or false,
+              --})
               UIManager:close(self.file_dialog)
               self:updateItems(1, true)
             end,
@@ -264,9 +264,9 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
             text = bookinfo.ignore_meta and _("Unignore metadata") or _("Ignore metadata"),
             enabled = bookinfo.has_meta and true or false,
             callback = function()
-              BookInfoManager:setBookInfoProperties(file, {
-                ["ignore_meta"] = not bookinfo.ignore_meta and 'Y' or false,
-              })
+              --BookInfoManager:setBookInfoProperties(file, {
+              --  ["ignore_meta"] = not bookinfo.ignore_meta and 'Y' or false,
+              --})
               UIManager:close(self.file_dialog)
               self:updateItems(1, true)
             end,
@@ -278,7 +278,7 @@ function CoverMenu:updateItems(select_number, no_recalculate_dimen)
             callback = function()
               -- Wipe the cache
               self:updateCache(file)
-              BookInfoManager:deleteBookInfo(file)
+              --BookInfoManager:deleteBookInfo(file)
               UIManager:close(self.file_dialog)
               self:updateItems(1, true)
             end,
@@ -330,9 +330,9 @@ function CoverMenu:onHistoryMenuHold(item)
       text = bookinfo.ignore_cover and _("Unignore cover") or _("Ignore cover"),
       enabled = bookinfo.has_cover and true or false,
       callback = function()
-        BookInfoManager:setBookInfoProperties(file, {
-          ["ignore_cover"] = not bookinfo.ignore_cover and 'Y' or false,
-        })
+        --BookInfoManager:setBookInfoProperties(file, {
+        --  ["ignore_cover"] = not bookinfo.ignore_cover and 'Y' or false,
+        --})
         UIManager:close(self.histfile_dialog)
         self:updateItems(1, true)
       end,
@@ -341,9 +341,9 @@ function CoverMenu:onHistoryMenuHold(item)
       text = bookinfo.ignore_meta and _("Unignore metadata") or _("Ignore metadata"),
       enabled = bookinfo.has_meta and true or false,
       callback = function()
-        BookInfoManager:setBookInfoProperties(file, {
-          ["ignore_meta"] = not bookinfo.ignore_meta and 'Y' or false,
-        })
+        --BookInfoManager:setBookInfoProperties(file, {
+        --  ["ignore_meta"] = not bookinfo.ignore_meta and 'Y' or false,
+        --})
         UIManager:close(self.histfile_dialog)
         self:updateItems(1, true)
       end,
@@ -355,7 +355,7 @@ function CoverMenu:onHistoryMenuHold(item)
       callback = function()
         -- Wipe the cache
         self:updateCache(file)
-        BookInfoManager:deleteBookInfo(file)
+        --BookInfoManager:deleteBookInfo(file)
         UIManager:close(self.histfile_dialog)
         self:updateItems(1, true)
       end,
@@ -401,9 +401,9 @@ function CoverMenu:onCollectionsMenuHold(item)
       text = bookinfo.ignore_cover and _("Unignore cover") or _("Ignore cover"),
       enabled = bookinfo.has_cover and true or false,
       callback = function()
-        BookInfoManager:setBookInfoProperties(file, {
-          ["ignore_cover"] = not bookinfo.ignore_cover and 'Y' or false,
-        })
+        --BookInfoManager:setBookInfoProperties(file, {
+        --  ["ignore_cover"] = not bookinfo.ignore_cover and 'Y' or false,
+        --})
         UIManager:close(self.collfile_dialog)
         self:updateItems(1, true)
       end,
@@ -412,9 +412,9 @@ function CoverMenu:onCollectionsMenuHold(item)
       text = bookinfo.ignore_meta and _("Unignore metadata") or _("Ignore metadata"),
       enabled = bookinfo.has_meta and true or false,
       callback = function()
-        BookInfoManager:setBookInfoProperties(file, {
-          ["ignore_meta"] = not bookinfo.ignore_meta and 'Y' or false,
-        })
+        --BookInfoManager:setBookInfoProperties(file, {
+        --  ["ignore_meta"] = not bookinfo.ignore_meta and 'Y' or false,
+        --})
         UIManager:close(self.collfile_dialog)
         self:updateItems(1, true)
       end,
@@ -426,7 +426,7 @@ function CoverMenu:onCollectionsMenuHold(item)
       callback = function()
         -- Wipe the cache
         self:updateCache(file)
-        BookInfoManager:deleteBookInfo(file)
+        --BookInfoManager:deleteBookInfo(file)
         UIManager:close(self.collfile_dialog)
         self:updateItems(1, true)
       end,
@@ -454,9 +454,9 @@ function CoverMenu:onCloseWidget()
 
   -- Stop background job if any (so that full cpu is available to reader)
   logger.dbg("CoverMenu:onCloseWidget: terminating jobs if needed")
-  BookInfoManager:terminateBackgroundJobs()
-  BookInfoManager:closeDbConnection() -- sqlite connection no more needed
-  BookInfoManager:cleanUp()           -- clean temporary resources
+  --BookInfoManager:terminateBackgroundJobs()
+  --BookInfoManager:closeDbConnection() -- sqlite connection no more needed
+  --BookInfoManager:cleanUp()           -- clean temporary resources
 
   -- Cancel any still scheduled update
   if self.halt_image_loading then
@@ -510,9 +510,9 @@ function CoverMenu:tapPlus()
       callback = function()
         UIManager:close(self.file_dialog)
         local Trapper = require("ui/trapper")
-        Trapper:wrap(function()
-          BookInfoManager:extractBooksInDirectory(current_path, current_cover_specs)
-        end)
+        --Trapper:wrap(function()
+        --  BookInfoManager:extractBooksInDirectory(current_path, current_cover_specs)
+        --end)
       end,
     },
   })

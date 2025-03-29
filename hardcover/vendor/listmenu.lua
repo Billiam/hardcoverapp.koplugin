@@ -33,7 +33,22 @@ local Screen = Device.screen
 local T = require("ffi/util").template
 local getMenuText = require("ui/widget/menu").getMenuText
 
-local BookInfoManager = require("bookinfomanager")
+--local BookInfoManager = require("bookinfomanager")
+local BookInfoManager = {
+  getCachedCoverSize = function(img_w, img_h, max_img_w, max_img_h)
+      local scale_factor
+      local width = math.floor(max_img_h * img_w / img_h + 0.5)
+      if max_img_w >= width then
+          max_img_w = width
+          scale_factor = max_img_w / img_w
+      else
+          max_img_h = math.floor(max_img_w * img_h / img_w + 0.5)
+          scale_factor = max_img_h / img_h
+      end
+      return max_img_w, max_img_h, scale_factor
+  end
+}
+
 
 -- Here is the specific UI implementation for "list" display modes
 -- (see covermenu.lua for the generic code)
@@ -388,14 +403,14 @@ function ListMenuItem:update()
         end
       elseif percent_finished then
         if pages then
-          if BookInfoManager:getSetting("show_pages_read_as_progress") then
-            pages_str = T(_("Page %1 of %2"), Math.round(percent_finished*pages), pages)
-          else
+          --if BookInfoManager:getSetting("show_pages_read_as_progress") then
+          --  pages_str = T(_("Page %1 of %2"), Math.round(percent_finished*pages), pages)
+          --else
             pages_str = T(_("%1 % of %2 pages"), math.floor(100*percent_finished), pages)
-          end
-          if BookInfoManager:getSetting("show_pages_left_in_progress") then
-            pages_str = T(_("%1, %2 to read"), pages_str, Math.round(pages-percent_finished*pages), pages)
-          end
+          --end
+          --if BookInfoManager:getSetting("show_pages_left_in_progress") then
+          --  pages_str = T(_("%1, %2 to read"), pages_str, Math.round(pages-percent_finished*pages), pages)
+          --end
         else
           pages_str = string.format("%d %%", 100*percent_finished)
         end
@@ -821,7 +836,7 @@ function ListMenuItem:paintTo(bb, x, y)
   end
 
   -- to which we paint a small indicator if this book has a description
-  if self.has_description and not BookInfoManager:getSetting("no_hint_description") then
+  if self.has_description then --and not BookInfoManager:getSetting("no_hint_description") then
     local target =  self[1][1][2]
     local d_w = Screen:scaleBySize(3)
     local d_h = math.ceil(target.dimen.h / 4)
@@ -909,7 +924,7 @@ function ListMenu:_recalculateDimen()
     -- Default perpage is computed from a base of 64px per ListMenuItem,
     -- which gives 10 items on kobo glo hd.
     self.files_per_page = math.floor(available_height / scale_by_size / 64)
-    BookInfoManager:saveSetting("files_per_page", self.files_per_page)
+    --BookInfoManager:saveSetting("files_per_page", self.files_per_page)
   end
   self.perpage = self.files_per_page
   if not self.portrait_mode then
