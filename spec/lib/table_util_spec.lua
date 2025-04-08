@@ -28,6 +28,23 @@ describe("table_util", function()
     end)
   end)
 
+  describe("map", function()
+    it("returns table containing callback result", function()
+      local input = { 1, 2, 3, 4 }
+      local result = table_util.map(input, function(el) return el * 2 end)
+
+      assert.are.same(result, { 2, 4, 6, 8 })
+    end)
+
+    it("passes table index to map callbacks", function()
+      local input = { "a", "b", "c" }
+
+      local result = table_util.map(input, function(el, index) return index end)
+
+      assert.are.same(result, { 1, 2, 3 })
+    end)
+  end)
+
   describe("contains", function()
     it("compares object equality", function()
       local subtable = { 1, 2, 3 }

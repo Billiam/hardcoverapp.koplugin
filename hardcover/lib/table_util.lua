@@ -13,6 +13,14 @@ function TableUtil.dig(t, ...)
   return result
 end
 
+function TableUtil.map(t, cb)
+  local result = {}
+  for i, v in ipairs(t) do
+    result[i] = cb(v, i)
+  end
+  return result
+end
+
 function TableUtil.contains(t, value)
   if not t then
     return false
