@@ -307,7 +307,7 @@ function HardcoverApi:search(title, author, userId, page)
   local query = [[
     query ($query: String!, $page: Int!) {
       search(query: $query, per_page: 25, page: $page, query_type: "Book") {
-        results
+        ids
       }
     }]]
   local search = title .. " " .. (author or "")
@@ -316,14 +316,14 @@ function HardcoverApi:search(title, author, userId, page)
     return nil, error
   end
 
-  if not results then
+  if not results or not results.search.ids then
     return {}
   end
 
   local ids = {}
 
-  for _, v in ipairs(results.search.results.hits) do
-    table.insert(ids, tonumber(v.document.id))
+  for _, id in ipairs(results.search.ids) do
+    table.insert(ids, tonumber(id))
   end
 
   return self:hydrateBooks(ids, userId)
