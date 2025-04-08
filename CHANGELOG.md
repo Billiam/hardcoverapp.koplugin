@@ -11,10 +11,12 @@
 ### 🚀 Added
 
 * Prompt to enable wifi if needed before opening journal dialog
+* Reduce data requested from search API endpoint
 
 ### 🧹 Chores
 
 * Include user agent in requests to hardcover API
+* Remove dependency on coverbrowser plugin
 
 ### 🩹 Fixes
 
