@@ -258,10 +258,9 @@ function HardcoverApi:findEditions(book_id, user_id)
 
   if #edition_list > 1 then
     -- prefer editions with user reads
-    local edition_ids = {}
-    for _, edition in ipairs(edition_list) do
-      table.insert(edition_ids, edition.id)
-    end
+    local edition_ids = _t.map(edition_list, function(edition)
+      return edition.id
+    end)
 
     local read_search = [[
       query ($ids: [Int!], $userId: Int!) {
@@ -295,11 +294,9 @@ function HardcoverApi:findEditions(book_id, user_id)
     end)
   end
 
-  local mapped_results = {}
-  for _, edition in ipairs(edition_list) do
-    table.insert(mapped_results, self:normalizedEdition(edition))
-  end
-  return mapped_results
+  return _t.map(edition_list, function(edition)
+    return self:normalizedEdition(edition)
+  end)
 end
 
 function HardcoverApi:search(title, author, userId, page)
@@ -316,16 +313,11 @@ function HardcoverApi:search(title, author, userId, page)
     return nil, error
   end
 
-  if not results or not results.search.ids then
+  if not results or not _t.dig(results, "search", "ids") then
     return {}
   end
 
-  local ids = {}
-
-  for _, id in ipairs(results.search.ids) do
-    table.insert(ids, tonumber(id))
-  end
-
+  local ids = _t.map(results.search.ids, function(id) return tonumber(id) end)
   return self:hydrateBooks(ids, userId)
 end
 

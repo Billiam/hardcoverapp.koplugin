@@ -227,11 +227,9 @@ function HardcoverSearchDialog:onTapClose(arg, ges)
 end
 
 function HardcoverSearchDialog:parseItems(items, active_item)
-  local list = {}
-  for _, book in ipairs(items) do
-    table.insert(list, self:createListItem(book, active_item))
-  end
-  return list
+  return _t.map(items, function(book)
+    return self:createListItem(book, active_item)
+  end)
 end
 
 function HardcoverSearchDialog:setItems(title, items, active_item)
