@@ -25,7 +25,7 @@ on your book's metadata, these will be displayed.
 
 ![A dismissable window titled "Select book" with a search button displayed as a magnifying glass in the upper left corner, and a close button on the right. A list of 14 possible books is displayed below this, with buttons to change result pages. The book title ande author are displayed if available, as well as the number of reads by hardcover users and the number of pages if available. Some books display cover images](https://github.com/user-attachments/assets/99d16ef0-6dda-41d8-bfdc-32c97ae09d87)
 
-If you cannot find the book you're looking for, you can touch the magnifying glass icon in the upper left corner and
+If you cannot find the book you're looking for, you can tap the magnifying glass icon in the upper left corner and
 begin a manual search.
 
 ![An input dialog titled "New Search" with the text "Frankenstein Mary Shelley". Behind the dialog, a recent book search result dialog appears with two books](https://github.com/user-attachments/assets/73619448-9821-410a-901f-d8fc61185dd3)
@@ -34,7 +34,7 @@ Selecting a Hardcover book or edition will link it to your current document, but
 reading status on Hardcover. This can be done manually from the [update status](#updating-reading-status) menu, or using
 the [track progress](#automatically-track-progress) option.
 
-To clear the currently linked book, touch and hold to the `Linked book` menu item for a moment.
+To clear the currently linked book, tap and hold to the `Linked book` menu item for a moment.
 
 After selecting a book, you can set a specific edition using the `Change edition` menu item. This will present a list
 of available editions for the currently linked book. No manual edition search is available
@@ -49,7 +49,7 @@ library using the `Remove` menu item.
 
 From this menu you can also update your current page and book rating, and add a new journal entry
 
-Touch and hold the book rating menu item to clear your current rating.
+Tap and hold the book rating menu item to clear your current rating.
 
 ### Add a journal entry quote
 
@@ -121,8 +121,8 @@ when you cross a percentage threshold (for examppe, every 10% completed).
 ### Always track progress by default
 
 When always track progress is enabled, new documents will have the [track progress](#automatically-track-progress)
-option
-enabled by automatically. You can still turn off `Track progress` on a per-document basis when this setting is enabled.
+option enabled automatically. You can still turn off `Track progress` on a per-document basis when this setting is
+enabled.
 
 Books still must be linked (manually or automatically) to send updates to Hardcover.
 
