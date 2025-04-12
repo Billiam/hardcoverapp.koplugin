@@ -1,22 +1,28 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 (2025-04-12)
+
+### 🚀 Added
+
+* Reduce data requested from search API endpoint
 
 ### 🩹 Fixes
 
 * Fix missing invalid API key warning after request failure
+
+### 🧹 Chores
+
+* Remove dependency on coverbrowser plugin
 
 ## 0.1.0 (2025-03-21)
 
 ### 🚀 Added
 
 * Prompt to enable wifi if needed before opening journal dialog
-* Reduce data requested from search API endpoint
 
 ### 🧹 Chores
 
 * Include user agent in requests to hardcover API
-* Remove dependency on coverbrowser plugin
 
 ### 🩹 Fixes
 
