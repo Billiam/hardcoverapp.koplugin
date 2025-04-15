@@ -22,6 +22,8 @@ local HardcoverSearchDialog = InputContainer:extend {
   select_cb = nil,
   title = nil,
   search_callback = nil,
+  left_icon_callback = nil,
+  left_icon = nil,
   search_value = nil,
 
   compatibility_mode = true
@@ -52,7 +54,10 @@ function HardcoverSearchDialog:createListItem(book, active_item)
     info = book.users_read_count .. " reads"
   end
 
-  local active = (book.edition_id and book.edition_id == active_item.edition_id) or (book.book_id == active_item.book_id)
+  local active = active_item and (
+    (book.edition_id and book.edition_id == active_item.edition_id) or
+    (book.book_id == active_item.book_id)
+  )
 
   local result = {
     title = title,
@@ -142,6 +147,9 @@ function HardcoverSearchDialog:init()
   if self.search_callback then
     left_icon = "appbar.search"
     left_icon_callback = function() self:search() end
+  elseif self.left_icon_callback then
+    left_icon = self.left_icon
+    left_icon_callback = self.left_icon_callback
   end
   local menu_class = self.compatibility_mode and Menu or SearchMenu
 

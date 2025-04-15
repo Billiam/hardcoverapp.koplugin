@@ -78,6 +78,22 @@ function DialogManager:buildSearchDialog(title, items, active_item, book_callbac
   UIManager:show(self.search_dialog)
 end
 
+function DialogManager:buildBookListDialog(title, items, icon_callback)
+  if self.search_dialog then
+    self.search_dialog:free()
+  end
+
+  self.search_dialog = SearchDialog:new {
+    compatibility_mode = self.settings:compatibilityMode(),
+    title = title,
+    items = items,
+    left_icon_callback = icon_callback,
+    left_icon = "cre.render.reload"
+  }
+
+  UIManager:show(self.search_dialog)
+end
+
 function DialogManager:updateSearchResults(search)
   local books, error = Api:findBooks(search, nil, User:getId())
   if error then
@@ -90,6 +106,10 @@ function DialogManager:updateSearchResults(search)
 
   self.search_dialog:setItems(self.search_dialog.title, books, self.search_dialog.active_item)
   self.search_dialog.search_value = search
+end
+
+function DialogManager:updateRandomBooks(books)
+  self.search_dialog:setItems(self.search_dialog.title, books)
 end
 
 function DialogManager:journalEntryForm(text, document, page, remote_pages, mapped_page, event_type)
