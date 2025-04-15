@@ -57,6 +57,50 @@ describe("table_util", function()
     end)
   end)
 
+  describe("filter", function()
+    it("selects table elements by callback", function()
+      local input = { 1, 2, 3, 4, 5, 6 }
+      local result = table_util.filter(input, function(v, k) return v % 2 == 0 end)
+      assert.are.same(result, { 2, 4, 6 })
+    end)
+
+    it("selects table elements by index", function()
+      local input = { 10, 20, 30, 40, 50, 60 }
+      local result = table_util.filter(input, function(v, k) return k % 2 == 0 end)
+      assert.are.same(result, { 20, 40, 60 })
+    end)
+  end)
+
+  describe("slice", function()
+    it("returns limited result", function()
+      local input = { 1, 2, 3, 4, 5, 6 }
+      local result = table_util.slice(input, 4)
+
+      assert.are.same(result, { 4, 5, 6 })
+    end)
+
+    it("returns offset result", function()
+      local input = { 1, 2, 3, 4, 5, 6 }
+      local result = table_util.slice(input, 1, 3)
+
+      assert.are.same(result, { 1, 2, 3 })
+    end)
+
+    it("limits end to table length", function()
+      local input = { 1, 2, 3 }
+      local result = table_util.slice(input, 4)
+
+      assert.are.same(result, {})
+    end)
+
+    it("returns midsection of input", function()
+      local input = { 1, 2, 3, 4, 5, 6 }
+      local result = table_util.slice(input, 3, 4)
+
+      assert.are.same(result, { 3, 4 })
+    end)
+  end)
+
   describe("binSearch", function()
     it("returns nil for an empty table", function()
       assert.is_nil(table_util.binSearch({}, 5))
