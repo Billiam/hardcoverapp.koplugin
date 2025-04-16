@@ -78,7 +78,7 @@ function DialogManager:buildSearchDialog(title, items, active_item, book_callbac
   UIManager:show(self.search_dialog)
 end
 
-function DialogManager:buildBookListDialog(title, items, icon_callback)
+function DialogManager:buildBookListDialog(title, items, icon_callback, disable_wifi_after)
   if self.search_dialog then
     self.search_dialog:free()
   end
@@ -88,7 +88,14 @@ function DialogManager:buildBookListDialog(title, items, icon_callback)
     title = title,
     items = items,
     left_icon_callback = icon_callback,
-    left_icon = "cre.render.reload"
+    left_icon = "cre.render.reload",
+    close_callback = function()
+      if disable_wifi_after then
+        UIManager:nextTick(function()
+          self.wifi:wifiDisablePrompt()
+        end)
+      end
+    end
   }
 
   UIManager:show(self.search_dialog)

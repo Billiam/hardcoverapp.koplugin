@@ -63,20 +63,28 @@ function Hardcover:cacheRandomBooks()
 end
 
 function Hardcover:showRandomBookDialog()
-  local books = self.random_books
-  if not books then
-    books = self:cacheRandomBooks()
-  end
-
-  if not self.random_books then
-    return
-  end
-
-  self.dialog_manager:buildBookListDialog("Suggest a book", self.random_books, function()
-    books = self:cacheRandomBooks()
-    if books then
-      self.dialog_manager:updateRandomBooks(books)
+  self.wifi:wifiPrompt(function(wifi_enabled)
+    local books = self.random_books
+    if not books then
+      books = self:cacheRandomBooks()
     end
+
+    if not self.random_books or #self.random_books == 0 then
+      if wifi_enabled then
+        UIManager:nextTick(function()
+          self.wifi:wifiDisablePrompt()
+        end)
+      end
+
+      return
+    end
+
+    self.dialog_manager:buildBookListDialog("Suggest a book", self.random_books, function()
+      books = self:cacheRandomBooks()
+      if books then
+        self.dialog_manager:updateRandomBooks(books)
+      end
+    end, wifi_enabled)
   end)
 end
 

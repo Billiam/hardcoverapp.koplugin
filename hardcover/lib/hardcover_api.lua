@@ -404,7 +404,7 @@ function HardcoverApi:getRandomToRead(user_id, limit)
 
   local read_query = [[
     query ($userId: Int!) {
-      user_books(where: { user_id: { _eq: $userId }}) {
+      user_books(where: { status_id: { _eq:1 }, user_id: { _eq: $userId }}) {
         book_id
       }
     }

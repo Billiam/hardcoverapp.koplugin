@@ -25,6 +25,7 @@ local HardcoverSearchDialog = InputContainer:extend {
   left_icon_callback = nil,
   left_icon = nil,
   search_value = nil,
+  close_callback = nil,
 
   compatibility_mode = true
 }
@@ -224,6 +225,10 @@ end
 
 function HardcoverSearchDialog:onClose()
   UIManager:close(self)
+  if self.close_callback then
+    self.close_callback()
+  end
+
   return true
 end
 
