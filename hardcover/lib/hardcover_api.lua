@@ -53,7 +53,6 @@ fragment EditionParts on editions {
   }
   cached_image
   edition_format
-  reading_format_id
   language {
     code2
     language
@@ -285,6 +284,10 @@ function HardcoverApi:findEditions(book_id, user_id)
 
       if read_a ~= read_b then
         return read_a == true
+      end
+
+      if a.reading_format_id ~= b.reading_format_id then
+        return a.reading_format_id == 4
       end
 
       if a.users_count ~= b.users_count then
