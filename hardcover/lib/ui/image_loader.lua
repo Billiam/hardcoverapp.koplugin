@@ -59,9 +59,9 @@ function Batch:loadImages(urls)
 
       if #url_queue > 0 then
         UIManager:scheduleIn(0.2, run_image)
+      else
+        self.loading = false
       end
-
-      self.loading = false
     end)
   end
 
