@@ -244,7 +244,6 @@ function HardcoverApi:findEditions(book_id, user_id)
   local edition_search = [[
     query ($id: Int!, $userId: Int!) {
       editions(where: { book_id: { _eq: $id }, _or: [{reading_format_id: { _is_null: true }}, {reading_format_id: { _neq: 2 }} ]},
-      limit: 50,
       order_by: { users_count: desc_nulls_last }) {
         ...EditionParts
       }
