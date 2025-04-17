@@ -14,6 +14,8 @@ local User = require("hardcover/lib/user")
 
 local SETTING = require("hardcover/lib/constants/settings")
 
+local cache = {}
+
 local Hardcover = {}
 Hardcover.__index = Hardcover
 
@@ -60,18 +62,18 @@ function Hardcover:cacheRandomBooks()
     return
   end
 
-  self.random_books = books
+  cache.random_books = books
   return books
 end
 
 function Hardcover:showRandomBookDialog()
   self.wifi:wifiPrompt(function(wifi_enabled)
-    local books = self.random_books
+    local books = cache.random_books
     if not books then
       books = self:cacheRandomBooks()
     end
 
-    if not self.random_books or #self.random_books == 0 then
+    if not cache.random_books or #cache.random_books == 0 then
       if wifi_enabled then
         UIManager:nextTick(function()
           self.wifi:wifiDisablePrompt()
@@ -81,7 +83,7 @@ function Hardcover:showRandomBookDialog()
       return
     end
 
-    self.dialog_manager:buildBookListDialog("Suggest a book", self.random_books, function()
+    self.dialog_manager:buildBookListDialog("Suggest a book", cache.random_books, function()
       books = self:cacheRandomBooks()
       if books then
         self.dialog_manager:updateRandomBooks(books)
