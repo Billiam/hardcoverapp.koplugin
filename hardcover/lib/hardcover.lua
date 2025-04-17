@@ -48,7 +48,9 @@ function Hardcover:showLinkBookDialog(force_search, link_callback)
 end
 
 function Hardcover:cacheRandomBooks()
-  local books, error = Api:getRandomToRead(10)
+  local user_id = User:getId()
+
+  local books, error = Api:getRandomToRead(user_id, 10)
   if error then
     UIManager:show(InfoMessage:new {
       text = _("Error fetching to-read list"),
