@@ -21,6 +21,33 @@ function TableUtil.map(t, cb)
   return result
 end
 
+function TableUtil.filter(t, cb)
+  local result = {}
+  for i, v in ipairs(t) do
+    if cb(v, i) then
+      table.insert(result, v)
+    end
+  end
+  return result
+end
+
+function TableUtil.shuffle(t)
+  for i = #t, 2, -1 do
+    local j = math.random(i)
+    t[i], t[j] = t[j], t[i]
+  end
+end
+
+function TableUtil.slice(t, from, to)
+  local result = {}
+  local max = (not to or to > #t) and #t or to
+
+  for i = from, max do
+    result[i - from + 1] = t[i]
+  end
+  return result
+end
+
 function TableUtil.contains(t, value)
   if not t then
     return false

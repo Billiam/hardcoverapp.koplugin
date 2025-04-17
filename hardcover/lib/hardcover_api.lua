@@ -401,6 +401,31 @@ function HardcoverApi:findBooks(title, author, userId)
   return self:search(title, author, userId)
 end
 
+function HardcoverApi:getRandomToRead(user_id, limit)
+  limit = limit or 10
+
+  local read_query = [[
+    query ($userId: Int!) {
+      user_books(where: { status_id: { _eq:1 }, user_id: { _eq: $userId }}) {
+        book_id
+      }
+    }
+  ]]
+  local results, err = self:query(read_query, { userId = user_id })
+  if not results or not results.user_books then
+    return {}, err
+  end
+
+  if not results or not results.user_books then
+    return {}
+  end
+
+  local ids = _t.map(results.user_books, function(result) return tonumber(result.book_id) end)
+  _t.shuffle(ids)
+
+  return self:hydrateBooks(_t.slice(ids, 1, limit), user_id)
+end
+
 function HardcoverApi:findUserBook(book_id, user_id)
   -- this may not be adequate, as (it's possible) there could be more than one read in progress? Maybe?
   local read_query = [[

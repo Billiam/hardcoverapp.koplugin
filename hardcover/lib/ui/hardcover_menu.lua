@@ -17,6 +17,7 @@ local SpinWidget = require("ui/widget/spinwidget")
 local Api = require("hardcover/lib/hardcover_api")
 local Github = require("hardcover/lib/github")
 local User = require("hardcover/lib/user")
+local _t = require("hardcover/lib/table_util")
 
 local HARDCOVER = require("hardcover/lib/constants/hardcover")
 local ICON = require("hardcover/lib/constants/icons")
@@ -47,14 +48,15 @@ function HardcoverMenu:mainMenu()
       return self.settings:bookLinked() and _("Hardcover: " .. ICON.LINK) or _("Hardcover")
     end,
     sub_item_table_func = function()
-      return self:getSubMenuItems()
+      local has_book = self.ui.document and true or false
+      return self:getSubMenuItems(has_book)
     end,
   }
 end
 
-function HardcoverMenu:getSubMenuItems()
-  return {
-    {
+function HardcoverMenu:getSubMenuItems(book_view)
+  local menu_items = {
+    book_view and {
       text_func = function()
         if self.settings:bookLinked() then
           -- need to show link information somehow. Maybe store title
@@ -96,7 +98,7 @@ function HardcoverMenu:getSubMenuItems()
         end)
       end,
     },
-    {
+    book_view and {
       text_func = function()
         local edition_format = self.settings:getLinkedEditionFormat()
         local title = "Change edition"
@@ -130,7 +132,7 @@ function HardcoverMenu:getSubMenuItems()
       keep_menu_open = true,
       separator = true
     },
-    {
+    book_view and {
       text = _("Automatically track progress"),
       checked_func = function()
         return self.settings:syncEnabled()
@@ -143,7 +145,7 @@ function HardcoverMenu:getSubMenuItems()
         self.settings:setSync(sync)
       end,
     },
-    {
+    book_view and {
       text = _("Update status"),
       enabled_func = function()
         return self.settings:bookLinked()
@@ -154,6 +156,14 @@ function HardcoverMenu:getSubMenuItems()
         return self:getStatusSubMenuItems()
       end,
       separator = true
+    },
+    {
+      text = _("Suggest a book"),
+      callback = function()
+        self.hardcover:showRandomBookDialog()
+      end,
+      separator = true,
+      keep_menu_open = true
     },
     {
       text = _("Settings"),
@@ -192,6 +202,7 @@ Settings:
       keep_menu_open = true
     }
   }
+  return _t.filter(menu_items, function(v) return v end)
 end
 
 function HardcoverMenu:getVisibilitySubMenuItems()

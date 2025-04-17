@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### 🚀 Added
+
+* Hardcover menu now visible in both reading view and file manager view
+* Added "suggest a book" to hardcover menu. Displays 10 books from your to-read list at random.
+
 ## 0.1.1 (2025-04-12)
 
 ### 🚀 Added

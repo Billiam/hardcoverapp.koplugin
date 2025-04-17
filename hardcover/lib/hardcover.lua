@@ -6,6 +6,7 @@ local util = require("util")
 local UIManager = require("ui/uimanager")
 
 local Notification = require("ui/widget/notification")
+local InfoMessage = require("ui/widget/infomessage")
 
 local Api = require("hardcover/lib/hardcover_api")
 local Book = require("hardcover/lib/book")
@@ -44,6 +45,47 @@ function Hardcover:showLinkBookDialog(force_search, link_callback)
     end,
     search_value
   )
+end
+
+function Hardcover:cacheRandomBooks()
+  local books, error = Api:getRandomToRead(10)
+  if error then
+    UIManager:show(InfoMessage:new {
+      text = _("Error fetching to-read list"),
+      icon = "notice-warning",
+      timeout = 2
+    })
+    return
+  end
+
+  self.random_books = books
+  return books
+end
+
+function Hardcover:showRandomBookDialog()
+  self.wifi:wifiPrompt(function(wifi_enabled)
+    local books = self.random_books
+    if not books then
+      books = self:cacheRandomBooks()
+    end
+
+    if not self.random_books or #self.random_books == 0 then
+      if wifi_enabled then
+        UIManager:nextTick(function()
+          self.wifi:wifiDisablePrompt()
+        end)
+      end
+
+      return
+    end
+
+    self.dialog_manager:buildBookListDialog("Suggest a book", self.random_books, function()
+      books = self:cacheRandomBooks()
+      if books then
+        self.dialog_manager:updateRandomBooks(books)
+      end
+    end, wifi_enabled)
+  end)
 end
 
 function Hardcover:updateCurrentBookStatus(status, privacy_setting_id)

@@ -64,6 +64,13 @@ function HardcoverApp:onDispatcherRegisterActions()
     title = _("Hardcover: Stop tracking progress"),
     general = true,
   })
+
+  Dispatcher:registerAction("hardcover_random_books", {
+    category = "none",
+    event = "HardcoverSuggestBook",
+    title = _("Hardcover: Suggest a book"),
+    general = true,
+  })
 end
 
 function HardcoverApp:init()
@@ -174,6 +181,10 @@ function HardcoverApp:onHardcoverStopTrack()
   UIManager:show(Notification:new {
     text = _("Progress tracking disabled")
   })
+end
+
+function HardcoverApp:onHardcoverSuggestBook()
+  self.hardcover:showRandomBookDialog()
 end
 
 function HardcoverApp:onSettingsChanged(field, change, original_value)
@@ -593,10 +604,6 @@ function HardcoverApp:registerHighlight()
 end
 
 function HardcoverApp:addToMainMenu(menu_items)
-  if not self.view then
-    return
-  end
-
   menu_items.hardcover = self.menu:mainMenu()
 end
 
