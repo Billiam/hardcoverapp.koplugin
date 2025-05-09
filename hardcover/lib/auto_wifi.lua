@@ -20,7 +20,10 @@ function AutoWifi:withWifi(callback)
     return
   end
 
-  if self.settings:readSetting(SETTING.ENABLE_WIFI) and not NetworkMgr.pending_connection and Device:hasWifiRestore() then
+  if self.settings:readSetting(SETTING.ENABLE_WIFI)
+      and not NetworkMgr.pending_connection
+      and Device:hasWifiRestore()
+      and G_reader_settings:nilOrFalse("airplanemode") then
     --logger.warn("HARDCOVER enabling wifi")
 
     local original_on = NetworkMgr.wifi_was_on
@@ -57,6 +60,10 @@ function AutoWifi:wifiPrompt(callback)
       callback(false)
     end
 
+    return
+  end
+
+  if G_reader_settings:isTrue("airplanemode") then
     return
   end
 
