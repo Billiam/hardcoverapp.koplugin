@@ -115,10 +115,6 @@ function DialogManager:updateSearchResults(search)
   self.search_dialog.search_value = search
 end
 
-function DialogManager:updateRandomBooks(books)
-  self.search_dialog:setItems(self.search_dialog.title, books)
-end
-
 function DialogManager:journalEntryForm(text, document, page, remote_pages, mapped_page, event_type)
   local settings = self.settings:readBookSettings(document.file) or {}
   local edition_id = settings.edition_id

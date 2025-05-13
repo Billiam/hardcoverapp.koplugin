@@ -158,14 +158,6 @@ function HardcoverMenu:getSubMenuItems(book_view)
       separator = true
     },
     {
-      text = _("Suggest a book"),
-      callback = function()
-        self.hardcover:showRandomBookDialog()
-      end,
-      separator = true,
-      keep_menu_open = true
-    },
-    {
       text = _("Settings"),
       sub_item_table_func = function()
         return self:getSettingsSubMenuItems()
