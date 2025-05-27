@@ -64,6 +64,13 @@ function HardcoverApp:onDispatcherRegisterActions()
     title = _("Hardcover: Stop tracking progress"),
     general = true,
   })
+
+  Dispatcher:registerAction("hardcover_update_progress", {
+    category = "none",
+    event = "HardcoverUpdateProgress",
+    title = _("Hardcover: Update progress"),
+    general = true,
+  })
 end
 
 function HardcoverApp:init()
@@ -176,6 +183,34 @@ function HardcoverApp:onHardcoverStopTrack()
   })
 end
 
+function HardcoverApp:onHardcoverUpdateProgress()
+  if self.ui.document and self.settings:bookLinked() then
+    self:updatePageNow(function(result)
+      if result then
+        UIManager:show(Notification:new {
+          text = _("Progress updated")
+        })
+      else
+        logger.warn("Unsuccessful updating page progress", self.ui.document.file)
+      end
+    end)
+  else
+    logger.warn(self.state.book_status)
+    local error
+    if not self.ui.document then
+      error = "No book active"
+    elseif not self.state.book_status.id then
+      error = "Book has not been mapped"
+    end
+
+    local error_message = error and "Unable to update reading progress: " .. error or "Unable to update reading progress"
+    UIManager:show(InfoMessage:new {
+      text = error_message,
+      icon = "notice-warning",
+    })
+  end
+end
+
 function HardcoverApp:onSettingsChanged(field, change, original_value)
   if field == SETTING.BOOKS then
     local book_settings = change.config
@@ -202,7 +237,7 @@ function HardcoverApp:onSettingsChanged(field, change, original_value)
   end
 end
 
-function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
+function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate, callback)
   --logger.warn("HARDCOVER: Throttled page update", mapped_page)
   self.page_update_pending = false
 
@@ -225,6 +260,9 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate)
       local result = Api:updatePage(current_read.id, current_read.edition_id, mapped_page, current_read.started_at)
       if result then
         self.state.book_status = result
+      end
+      if callback then
+        callback(result)
       end
     end)
   end
@@ -336,12 +374,7 @@ function HardcoverApp:onDocumentClose()
   end
 
   if self.page_update_pending then
-    local mapped_page = self.page_mapper:getMappedPage(
-      self.state.page,
-      self.ui.document:getPageCount(),
-      self.settings:pages()
-    )
-    self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
+    self:updatePageNow()
   end
 
   self.process_page_turns = false
@@ -363,6 +396,15 @@ function HardcoverApp:onResume()
   end
 end
 
+function HardcoverApp:updatePageNow(callback)
+  local mapped_page = self.page_mapper:getMappedPage(
+    self.state.page,
+    self.ui.document:getPageCount(),
+    self.settings:pages()
+  )
+  self:_handlePageUpdate(self.ui.document.file, mapped_page, true, callback)
+end
+
 function HardcoverApp:onNetworkDisconnecting()
   --logger.warn("HARDCOVER on disconnecting")
   if self.settings:readSetting(SETTING.ENABLE_WIFI) then
@@ -375,12 +417,7 @@ function HardcoverApp:onNetworkDisconnecting()
   self.state.read_cache_started = false
 
   if self.page_update_pending and self.ui.document and self.state.book_status.id and self.settings:syncEnabled() and self.settings:trackByTime() then
-    local mapped_page = self.page_mapper:getMappedPage(
-      self.state.page,
-      self.ui.document:getPageCount(),
-      self.settings:pages()
-    )
-    self:_handlePageUpdate(self.ui.document.file, mapped_page, true)
+    self:updatePageNow()
   end
   self.page_update_pending = false
 end
