@@ -5,7 +5,7 @@
 ### 🚀 Added
 
 * Hardcover menu now visible in both reading view and file manager view
-* Sort ebooks above physical books in edition list\
+* Sort ebooks above physical books in edition list
 * Support [airplane mode plugin](https://github.com/kodermike/airplanemode.koplugin)
 
 ### 🩹 Fixes
