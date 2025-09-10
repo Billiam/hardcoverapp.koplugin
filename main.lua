@@ -151,6 +151,27 @@ function HardcoverApp:_bookSettingChanged(setting, key)
   return setting[key] ~= nil or _t.contains(_t.dig(setting, "_delete"), key)
 end
 
+-- Open note dialog
+--
+-- UIManager:broadcastEvent(Event:new("HardcoverNote", note_params))
+--
+-- note_params can contain:
+--   text: Value will prepopulate the note section
+--   page_number: The local page number
+--   remote_page (optional): The mapped page in the linked book edition
+--   note_type: one of "quote" or "note"
+function HardcoverApp:onHardcoverNote(note_params)
+  -- open journal dialog
+  self.dialog_manager:journalEntryForm(
+    note_params.text,
+    self.ui.document,
+    note_params.page_number,
+    self.settings:pages(),
+    note_params.remote_page,
+    note_params.note_type or "quote"
+  )
+end
+
 function HardcoverApp:disable()
   self.enabled = false
   if self.menu then
@@ -613,14 +634,11 @@ function HardcoverApp:registerHighlight()
             raw_page = self.view.document:getPageFromXPointer(selected_text.pos0)
           end
           -- open journal dialog
-          self.dialog_manager:journalEntryForm(
-            selected_text.text,
-            self.ui.document,
-            raw_page,
-            self.settings:pages(),
-            nil,
-            "quote"
-          )
+          self:onHardcoverNote({
+            text = selected_text.text,
+            page_number = raw_page,
+            note_type = "quote"
+          })
 
           this:onClose()
         end,
