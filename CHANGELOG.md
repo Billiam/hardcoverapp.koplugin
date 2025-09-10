@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### 🚀 Added
+
+* Register action to immediately update reading
+  progress [#19](https://github.com/Billiam/hardcoverapp.koplugin/issues/19)
+* Add event to open journal entry dialog [#27](https://github.com/Billiam/hardcoverapp.koplugin/issues/27)
+
 ## 0.1.2 (2025-05-13)
 
 ### 🚀 Added
