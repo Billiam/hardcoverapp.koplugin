@@ -26,8 +26,8 @@ function PageMapper:getMappedPage(raw_page, document_pages, remote_pages)
     local mapped_page = self.state.page_map[raw_page]
     if mapped_page then
       return mapped_page
-    elseif raw_page > #self.state.page_map then
-      return remote_pages
+    elseif raw_page > self.state.page_map_range.last_page then
+      return remote_pages or self.state.page_map_range.real_page
     end
   end
 
@@ -53,36 +53,42 @@ function PageMapper:checkIgnorePagemap()
   end
 end
 
+local toInteger = function(number)
+  local as_number = tonumber(number)
+  if as_number then
+    return math.floor(as_number)
+  end
+end
+
 function PageMapper:cachePageMap()
   if not self.ui.pagemap:wantsPageLabels() then
     return
   end
-
   local page_map = self.ui.document:getPageMap()
-  if not page_map then
-    return
-  end
 
   local lookup = {}
-  local last_label
-  local real_page = 1
+  local page_label = 1
+  local last_page_label = 1
   local last_page = 1
+  local max_page_label = 1
 
   for _, v in ipairs(page_map) do
+    page_label = toInteger(v.label) or page_label
+
     for i = last_page, v.page, 1 do
-      lookup[i] = real_page
+      lookup[i] = last_page_label
     end
 
-    if last_label ~= nil and v.label ~= last_label then
-      real_page = real_page + 1
-    end
-
-    last_label = v.label
-
-    lookup[v.page] = real_page
+    lookup[v.page] = page_label
     last_page = v.page
+    max_page_label = page_label > max_page_label and page_label or max_page_label
+    last_page_label = page_label
   end
 
+  self.state.page_map_range = {
+    real_page = max_page_label,
+    last_page = last_page,
+  }
   self.state.page_map = lookup
 end
 
