@@ -259,9 +259,6 @@ function HardcoverApp:onSettingsChanged(field, change, original_value)
 end
 
 function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate, callback)
-  --logger.warn("HARDCOVER: Throttled page update", mapped_page)
-  self.page_update_pending = false
-
   if not self:syncFileUpdates(filename) then
     return
   end
@@ -275,6 +272,8 @@ function HardcoverApp:_handlePageUpdate(filename, mapped_page, immediate, callba
   if not current_read then
     return
   end
+
+  self.page_update_pending = false
 
   local immediate_update = function()
     self.wifi:withWifi(function()
@@ -347,6 +346,8 @@ function HardcoverApp:pageUpdateEvent(page)
     if last_compare ~= current_compare then
       self:_handlePageUpdate(self.ui.document.file, mapped_page)
     end
+  elseif self.settings:trackByClose() then
+    self.page_update_pending = true
   end
 end
 
@@ -384,18 +385,18 @@ function HardcoverApp:cancelPendingUpdates()
   self.page_update_pending = false
 end
 
-function HardcoverApp:onDocumentClose()
+function HardcoverApp:onCloseDocument()
   UIManager:unschedule(self.startCacheRead)
+
+  if self.page_update_pending then
+    self:updatePageNow()
+  end
 
   self:cancelPendingUpdates()
   self.state.read_cache_started = false
 
   if not self.state.book_status.id and not self.settings:syncEnabled() then
     return
-  end
-
-  if self.page_update_pending then
-    self:updatePageNow()
   end
 
   self.process_page_turns = false

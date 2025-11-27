@@ -13,6 +13,7 @@ local Settings = {
   TRACK = {
     FREQUENCY = "frequency",
     PROGRESS = "progress",
+    CLOSE = "close",
   },
   USER_ID = "user_id",
 }

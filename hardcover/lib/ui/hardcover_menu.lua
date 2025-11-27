@@ -548,6 +548,16 @@ function HardcoverMenu:getTrackingSubMenuItems()
       end,
       keep_menu_open = true
     },
+    {
+      text = "Update on document close",
+      radio = true,
+      checked_func = function()
+        return self.settings:readSetting(SETTING.TRACK_METHOD) == SETTING.TRACK.CLOSE
+      end,
+      callback = function()
+        self.settings:setTrackMethod(SETTING.TRACK.CLOSE)
+      end
+    },
   }
 end
 
