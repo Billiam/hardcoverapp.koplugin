@@ -347,7 +347,6 @@ function HardcoverApp:pageUpdateEvent(page)
       self:_handlePageUpdate(self.ui.document.file, mapped_page)
     end
   elseif self.settings:trackByClose() then
-    logger.warn("HARDCOVER trackByClose enabled, setting page_update_pending and pending_page_update")
     self.page_update_pending = true
     self.state.pending_page_update = true
   end
