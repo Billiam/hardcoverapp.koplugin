@@ -347,7 +347,9 @@ function HardcoverApp:pageUpdateEvent(page)
       self:_handlePageUpdate(self.ui.document.file, mapped_page)
     end
   elseif self.settings:trackByClose() then
+    logger.warn("HARDCOVER trackByClose enabled, setting page_update_pending and pending_page_update")
     self.page_update_pending = true
+    self.state.pending_page_update = true
   end
 end
 
@@ -388,6 +390,10 @@ end
 function HardcoverApp:onCloseDocument()
   UIManager:unschedule(self.startCacheRead)
 
+  if not self.state.book_status.id and not self.settings:syncEnabled() then
+    return
+  end
+
   if self.page_update_pending then
     self:updatePageNow()
   end
@@ -395,17 +401,20 @@ function HardcoverApp:onCloseDocument()
   self:cancelPendingUpdates()
   self.state.read_cache_started = false
 
-  if not self.state.book_status.id and not self.settings:syncEnabled() then
-    return
-  end
-
   self.process_page_turns = false
   self.page_update_pending = false
   self.state.book_status = {}
   self.state.page_map = nil
+  self.state.pending_page_update = nil
 end
 
 function HardcoverApp:onSuspend()
+  
+  if self.state.pending_page_update then
+    self:updatePageNow()
+    self.state.pending_page_update = nil
+  end
+
   self:cancelPendingUpdates()
 
   Scheduler:clear()
