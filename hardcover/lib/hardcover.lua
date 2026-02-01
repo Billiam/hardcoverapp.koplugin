@@ -135,6 +135,17 @@ function Hardcover:linkBook(book)
   self.settings:updateBookSetting(filename, new_settings)
   self.cache:cacheUserBook()
 
+  -- Update book status to READING after linking book
+  local bs = self.state.book_status
+  local status = bs and bs.status_id
+  -- Only move to READING if status is nil or TO_READ
+  if status == nil or status == HC.STATUS.TO_READ then
+    self:updateCurrentBookStatus(
+    HC.STATUS.READING,
+    (bs and bs.privacy_setting_id) or HC.PRIVACY.PRIVATE
+  )
+  end
+
   if book.book_id and self.state.book_status.id then
     if new_settings.edition_id and new_settings.edition_id ~= self.state.book_status.edition_id then
       -- update edition
