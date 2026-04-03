@@ -6,6 +6,7 @@ local Settings = {
   LINK_BY_HARDCOVER = "link_by_hardcover",
   LINK_BY_ISBN = "link_by_isbn",
   LINK_BY_TITLE = "link_by_title",
+  MENU_CONFIRMATION = "menu_confirmation",
   SYNC = "sync",
   TRACK_FREQUENCY = "track_frequency",
   TRACK_METHOD = "track_method",

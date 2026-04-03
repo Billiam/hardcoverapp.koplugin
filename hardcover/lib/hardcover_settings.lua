@@ -194,4 +194,12 @@ function HardcoverSettings:compatibilityMode()
   return self.settings:readSetting(SETTING.COMPATIBILITY_MODE) == true
 end
 
+function HardcoverSettings:setMenuConfirm(status)
+  self:updateSetting(SETTING.MENU_CONFIRMATION, status)
+end
+
+function HardcoverSettings:menuConfirm()
+  return self.settings:readSetting(SETTING.MENU_CONFIRMATION) == true
+end
+
 return HardcoverSettings

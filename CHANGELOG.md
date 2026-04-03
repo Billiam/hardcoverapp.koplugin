@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+Added option to show a confirmation when changing a book's currently read status to reduce misclick issues
+
 ## 0.3.1 (2026-02-18)
 
 ### Added

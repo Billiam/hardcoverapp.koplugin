@@ -96,12 +96,14 @@ are large differences in the total pages.
 
 ### Suggest a book
 
-The suggest a book menu item will display up to 10 books from your Want To Read list in random order. Selecting one of the books in the dialog will start a file search for that book on your device, based on the title. The plugin does not know which books you have or do not have on your device.
+The suggest a book menu item will display up to 10 books from your Want To Read list in random order. Selecting one of
+the books in the dialog will start a file search for that book on your device, based on the title. The plugin does not
+know which books you have or do not have on your device.
 
-The selected books/order are preserved when reopening the dialog (until KOReader is restarted), but you can use the refresh button in the upper left corner to get a new list of 10 books.
+The selected books/order are preserved when reopening the dialog (until KOReader is restarted), but you can use the
+refresh button in the upper left corner to get a new list of 10 books.
 
 ![Suggest a book dialog displaying several books. There is a refresh icon in the upper left corner](https://github.com/user-attachments/assets/2564e0f1-2c62-4463-957f-421a47d792d6)
-
 
 ## Settings
 
@@ -149,6 +151,11 @@ This feature is not used for all network requests. If wifi has not been manually
 
 * fetching or updating your reading status manually
 * manually updating your reading progress from the menu
+
+### Confirm changes to book read status
+
+By default, changes to a book's read status (Want to Read, Did Not Finish, etc) will immediately update in Hardcover as
+soon as you press them. Enable this setting to display a confirmation prompt before those changes are sent.
 
 ### Compatibility mode
 
