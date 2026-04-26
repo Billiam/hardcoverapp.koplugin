@@ -186,6 +186,10 @@ function HardcoverSettings:trackByProgress()
   return self.settings:readSetting(SETTING.TRACK_METHOD) == SETTING.TRACK.PROGRESS
 end
 
+function HardcoverSettings:trackByClose()
+  return self.settings:readSetting(SETTING.TRACK_METHOD) == SETTING.TRACK.CLOSE
+end
+
 function HardcoverSettings:changeTrackPercentageInterval(percent)
   self:updateSetting(SETTING.TRACK_PERCENTAGE, percent)
 end
