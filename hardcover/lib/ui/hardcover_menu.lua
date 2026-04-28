@@ -163,11 +163,19 @@ function HardcoverMenu:getSubMenuItems(book_view)
         self.cache:cacheUserBook()
 
         -- If wifi is off, prompt for it. Don't auto-disable — the user
-        -- is about to interact with menu items that need wifi.
+        -- is about to interact with menu items that need wifi. After
+        -- wifi comes on and the cache fills, walk the UI stack to find
+        -- the open submenu and refresh it so items reflect fresh state.
         if not NetworkMgr:isWifiOn() then
           self.wifi:wifiPrompt(function(wifi_enabled)
-            if wifi_enabled then
-              self.cache:cacheUserBook()
+            if not wifi_enabled then return end
+            self.cache:cacheUserBook()
+            for i = #UIManager._window_stack, 1, -1 do
+              local widget = UIManager._window_stack[i].widget
+              if widget and widget.updateItems and widget.item_table then
+                widget:updateItems()
+                break
+              end
             end
           end)
         end
