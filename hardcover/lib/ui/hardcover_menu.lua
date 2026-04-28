@@ -537,14 +537,22 @@ function HardcoverMenu:getStatusSubMenuItems()
                 is_enter_default = true,
                 callback = function()
                   local text = dialog:getInputText()
-                  local result = Api:updateReview(user_book_id, text)
-                  if result then
-                    self.state.book_status = result
-                    UIManager:close(dialog)
-                    menu_instance:updateItems()
-                  else
-                    self.dialog_manager:showError("Review could not be saved")
-                  end
+                  self.wifi:wifiPrompt(function(wifi_enabled)
+                    local result = Api:updateReview(user_book_id, text)
+                    if result then
+                      self.state.book_status = result
+                      UIManager:close(dialog)
+                      menu_instance:updateItems()
+                    else
+                      self.dialog_manager:showError("Review could not be saved")
+                    end
+
+                    if wifi_enabled then
+                      UIManager:nextTick(function()
+                        self.wifi:wifiDisablePrompt()
+                      end)
+                    end
+                  end)
                 end
               }
             }
@@ -557,13 +565,21 @@ function HardcoverMenu:getStatusSubMenuItems()
         self.dialog_manager:maybeConfirm({
           text = "Clear book review?",
           ok_callback = function()
-            local result = Api:updateReview(self.state.book_status.id, nil)
-            if result then
-              self.state.book_status = result
-              menu_instance:updateItems()
-            else
-              self.dialog_manager:showError("Review could not be cleared")
-            end
+            self.wifi:wifiPrompt(function(wifi_enabled)
+              local result = Api:updateReview(self.state.book_status.id, nil)
+              if result then
+                self.state.book_status = result
+                menu_instance:updateItems()
+              else
+                self.dialog_manager:showError("Review could not be cleared")
+              end
+
+              if wifi_enabled then
+                UIManager:nextTick(function()
+                  self.wifi:wifiDisablePrompt()
+                end)
+              end
+            end)
           end
         })
       end,
