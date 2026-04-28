@@ -14,7 +14,10 @@ local UpdateDoubleSpinWidget = require("hardcover/lib/ui/update_double_spin_widg
 local ConfirmBox = require("ui/widget/confirmbox")
 local InfoMessage = require("ui/widget/infomessage")
 local InputDialog = require("ui/widget/inputdialog")
+local MultiConfirmBox = require("ui/widget/multiconfirmbox")
 local SpinWidget = require("ui/widget/spinwidget")
+
+local Trapper = require("ui/trapper")
 
 local Api = require("hardcover/lib/hardcover_api")
 local Github = require("hardcover/lib/github")
@@ -154,8 +157,14 @@ function HardcoverMenu:getSubMenuItems(book_view)
         return self.settings:bookLinked()
       end,
       sub_item_table_func = function()
-        self.cache:cacheUserBook()
-
+        self.wifi:wifiPrompt(function(wifi_enabled)
+          self.cache:cacheUserBook()
+          if wifi_enabled then
+            UIManager:nextTick(function()
+              self.wifi:wifiDisablePrompt()
+            end)
+          end
+        end)
         return self:getStatusSubMenuItems()
       end,
       separator = true
@@ -540,29 +549,41 @@ function HardcoverMenu:getStatusSubMenuItems()
             })
           end
 
-          local save_succeeded = false
-
           local dialog
+          local function dismiss_with_draft(text)
+            if text and text ~= saved_review then
+              self.settings:setReviewDraft(file, text)
+            end
+            UIManager:close(dialog)
+          end
+
           dialog = InputDialog:new {
             title = _("Review"),
             input = initial_text,
             allow_newline = true,
-            close_callback = function()
-              if save_succeeded then
-                return
-              end
-              local current = dialog:getInputText() or ""
-              if current ~= saved_review then
-                self.settings:setReviewDraft(file, current)
-              end
-            end,
             buttons = {
               {
                 {
                   text = _("Cancel"),
                   id = "close",
                   callback = function()
-                    UIManager:close(dialog)
+                    local current = dialog:getInputText() or ""
+                    if current == initial_text then
+                      UIManager:close(dialog)
+                      return
+                    end
+                    UIManager:show(MultiConfirmBox:new {
+                      text = _("You have unsaved changes."),
+                      cancel_text = _("Continue editing"),
+                      choice1_text = _("Discard"),
+                      choice1_callback = function()
+                        UIManager:close(dialog)
+                      end,
+                      choice2_text = _("Save draft"),
+                      choice2_callback = function()
+                        dismiss_with_draft(current)
+                      end,
+                    })
                   end
                 },
                 {
@@ -571,23 +592,24 @@ function HardcoverMenu:getStatusSubMenuItems()
                   callback = function()
                     local text = dialog:getInputText()
                     self.wifi:wifiPrompt(function(wifi_enabled)
-                      local result = Api:updateReview(user_book_id, text)
-                      if result then
-                        self.settings:clearReviewDraft(file)
-                        self.state.book_status = result
-                        save_succeeded = true
-                        UIManager:close(dialog)
-                        menu_instance:updateItems()
-                      else
-                        self.settings:setReviewDraft(file, text)
-                        self.dialog_manager:showError("Review could not be saved")
-                      end
+                      Trapper:wrap(function()
+                        local result = Api:updateReview(user_book_id, text)
+                        if result then
+                          self.settings:clearReviewDraft(file)
+                          self.state.book_status = result
+                          UIManager:close(dialog)
+                          menu_instance:updateItems()
+                        else
+                          self.settings:setReviewDraft(file, text)
+                          self.dialog_manager:showError("Review could not be saved")
+                        end
 
-                      if wifi_enabled then
-                        UIManager:nextTick(function()
-                          self.wifi:wifiDisablePrompt()
-                        end)
-                      end
+                        if wifi_enabled then
+                          UIManager:nextTick(function()
+                            self.wifi:wifiDisablePrompt()
+                          end)
+                        end
+                      end)
                     end)
                   end
                 }
@@ -615,21 +637,23 @@ function HardcoverMenu:getStatusSubMenuItems()
           text = "Clear book review?",
           ok_callback = function()
             self.wifi:wifiPrompt(function(wifi_enabled)
-              local result = Api:updateReview(self.state.book_status.id, nil)
-              if result then
-                self.settings:clearReviewDraft(file)
-                self.state.book_status = result
-                menu_instance:updateItems()
-              else
-                -- Don't wipe the draft if the server clear didn't succeed.
-                self.dialog_manager:showError("Review could not be cleared")
-              end
+              Trapper:wrap(function()
+                local result = Api:updateReview(self.state.book_status.id, nil)
+                if result then
+                  self.settings:clearReviewDraft(file)
+                  self.state.book_status = result
+                  menu_instance:updateItems()
+                else
+                  -- Don't wipe the draft if the server clear didn't succeed.
+                  self.dialog_manager:showError("Review could not be cleared")
+                end
 
-              if wifi_enabled then
-                UIManager:nextTick(function()
-                  self.wifi:wifiDisablePrompt()
-                end)
-              end
+                if wifi_enabled then
+                  UIManager:nextTick(function()
+                    self.wifi:wifiDisablePrompt()
+                  end)
+                end
+              end)
             end)
           end
         })
