@@ -12,6 +12,7 @@ local UIManager = require("ui/uimanager")
 
 local UpdateDoubleSpinWidget = require("hardcover/lib/ui/update_double_spin_widget")
 local InfoMessage = require("ui/widget/infomessage")
+local InputDialog = require("ui/widget/inputdialog")
 local SpinWidget = require("ui/widget/spinwidget")
 
 local Api = require("hardcover/lib/hardcover_api")
@@ -493,7 +494,7 @@ function HardcoverMenu:getStatusSubMenuItems()
               self.state.book_status = result
               menu_instance:updateItems()
             else
-              self.dialog_magager:showError("Rating could not be saved")
+              self.dialog_manager:showError("Rating could not be saved")
             end
           end
         }
@@ -505,6 +506,66 @@ function HardcoverMenu:getStatusSubMenuItems()
           self.state.book_status = result
           menu_instance:updateItems()
         end
+      end,
+      keep_menu_open = true,
+    },
+    {
+      text = _("Review"),
+      enabled_func = function()
+        return self.enabled and self.state.book_status.id ~= nil
+      end,
+      callback = function(menu_instance)
+        local user_book_id = self.state.book_status.id
+        local initial_text = self.state.book_status.review_raw or ""
+
+        local dialog
+        dialog = InputDialog:new {
+          title = _("Review"),
+          input = initial_text,
+          allow_newline = true,
+          buttons = {
+            {
+              {
+                text = _("Cancel"),
+                id = "close",
+                callback = function()
+                  UIManager:close(dialog)
+                end
+              },
+              {
+                text = _("Save"),
+                is_enter_default = true,
+                callback = function()
+                  local text = dialog:getInputText()
+                  local result = Api:updateReview(user_book_id, text)
+                  if result then
+                    self.state.book_status = result
+                    UIManager:close(dialog)
+                    menu_instance:updateItems()
+                  else
+                    self.dialog_manager:showError("Review could not be saved")
+                  end
+                end
+              }
+            }
+          }
+        }
+        UIManager:show(dialog)
+        dialog:onShowKeyboard()
+      end,
+      hold_callback = function(menu_instance)
+        self.dialog_manager:maybeConfirm({
+          text = "Clear book review?",
+          ok_callback = function()
+            local result = Api:updateReview(self.state.book_status.id, nil)
+            if result then
+              self.state.book_status = result
+              menu_instance:updateItems()
+            else
+              self.dialog_manager:showError("Review could not be cleared")
+            end
+          end
+        })
       end,
       keep_menu_open = true,
       separator = true
