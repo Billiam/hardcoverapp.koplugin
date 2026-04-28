@@ -676,38 +676,6 @@ function HardcoverMenu:getStatusSubMenuItems()
           openEditor()
         end
       end,
-      hold_callback = function(menu_instance)
-        local file = self.ui.document.file
-        self.dialog_manager:maybeConfirm({
-          text = "Clear book review?",
-          ok_callback = function()
-            self.wifi:wifiPrompt(function(wifi_enabled)
-              Trapper:wrap(function()
-                local result, err = Api:updateReview(self.state.book_status.id, nil)
-                if result then
-                  self.settings:clearReviewDraft(file)
-                  self.state.book_status = result
-                  menu_instance:updateItems()
-                  UIManager:show(Notification:new {
-                    text = _("Review cleared on Hardcover"),
-                  })
-                else
-                  local message = err
-                    and ("Review could not be cleared: " .. tostring(err))
-                    or "Review could not be cleared"
-                  self.dialog_manager:showError(message)
-                end
-
-                if wifi_enabled then
-                  UIManager:nextTick(function()
-                    self.wifi:wifiDisablePrompt()
-                  end)
-                end
-              end)
-            end)
-          end
-        })
-      end,
       keep_menu_open = true,
       separator = true
     },

@@ -68,9 +68,7 @@ journal entry form, prefilled with the selected text and page.
 
 You can write a Hardcover review for a linked book from `Update status` → `Review`.
 
-The editor accepts plain text with paragraph breaks (separate paragraphs with a blank line). Tap **Save** to send the review to Hardcover; tap **Cancel** to dismiss.
-
-To clear an existing review, tap and hold the `Review` menu item and confirm.
+The editor accepts plain text with paragraph breaks (separate paragraphs with a blank line). Tap **Save** to send the review to Hardcover; tap **Cancel** to dismiss. Saving an empty review clears the review on Hardcover.
 
 If you've previously written a review for this book on Hardcover with rich formatting (bold, italic, links, etc.), you'll be warned before opening the editor — saving from here will flatten the review to plain text.
 
