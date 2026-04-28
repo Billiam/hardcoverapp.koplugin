@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 (2026-04-28)
+
+### Added
+
+* Added "Review" menu item under "Update status" to write, edit, or clear a book review on Hardcover. Editor accepts plain text with paragraph breaks; reviews with rich formatting (bold, italic, links) written on the Hardcover web app prompt a warning before editing here, since plain-text round-tripping flattens that formatting
+* Per-book review draft persistence — typed-but-unsaved review text survives accidental dismissal and KOReader restarts. Cleared on successful save or hold-to-clear
+
+### Fixes
+
+* Fix the rating-save error toast (was previously suppressed by a typo so the user saw nothing if a rating save failed)
+
 ## 0.4.0 (2026-04-26)
 
 ### Added

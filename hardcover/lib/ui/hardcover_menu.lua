@@ -9,13 +9,21 @@ local T = require("ffi/util").template
 
 local Font = require("ui/font")
 local UIManager = require("ui/uimanager")
+local NetworkMgr = require("ui/network/manager")
+local Notification = require("ui/widget/notification")
 
 local UpdateDoubleSpinWidget = require("hardcover/lib/ui/update_double_spin_widget")
+local ConfirmBox = require("ui/widget/confirmbox")
 local InfoMessage = require("ui/widget/infomessage")
+local InputDialog = require("ui/widget/inputdialog")
+local MultiConfirmBox = require("ui/widget/multiconfirmbox")
 local SpinWidget = require("ui/widget/spinwidget")
+
+local Trapper = require("ui/trapper")
 
 local Api = require("hardcover/lib/hardcover_api")
 local Github = require("hardcover/lib/github")
+local ReviewFormat = require("hardcover/lib/review_format")
 local User = require("hardcover/lib/user")
 local _t = require("hardcover/lib/table_util")
 
@@ -151,7 +159,36 @@ function HardcoverMenu:getSubMenuItems(book_view)
         return self.settings:bookLinked()
       end,
       sub_item_table_func = function()
+        -- Try cache synchronously; succeeds if wifi is already on.
         self.cache:cacheUserBook()
+
+        -- If wifi is off, prompt for it. Don't auto-disable — the user
+        -- is about to interact with menu items that need wifi. After
+        -- wifi comes on and the cache fills, walk the UI stack to find
+        -- the open submenu and refresh it so items reflect fresh state.
+        if not NetworkMgr:isWifiOn() then
+          self.wifi:wifiPrompt(function(wifi_enabled)
+            if not wifi_enabled then return end
+            self.cache:cacheUserBook()
+            -- Walk the UI stack for an open TouchMenu (item_table_stack is
+            -- the discriminator). It lives either directly on the stack or
+            -- wrapped in a menu_container (the ReaderMenu pattern, where
+            -- container[1] is the TouchMenu).
+            for i = #UIManager._window_stack, 1, -1 do
+              local widget = UIManager._window_stack[i].widget
+              if widget then
+                if widget.updateItems and widget.item_table_stack then
+                  widget:updateItems()
+                  return
+                end
+                if widget[1] and widget[1].updateItems and widget[1].item_table_stack then
+                  widget[1]:updateItems()
+                  return
+                end
+              end
+            end
+          end)
+        end
 
         return self:getStatusSubMenuItems()
       end,
@@ -493,7 +530,7 @@ function HardcoverMenu:getStatusSubMenuItems()
               self.state.book_status = result
               menu_instance:updateItems()
             else
-              self.dialog_magager:showError("Rating could not be saved")
+              self.dialog_manager:showError("Rating could not be saved")
             end
           end
         }
@@ -504,6 +541,139 @@ function HardcoverMenu:getStatusSubMenuItems()
         if result then
           self.state.book_status = result
           menu_instance:updateItems()
+        end
+      end,
+      keep_menu_open = true,
+    },
+    {
+      text = _("Review"),
+      enabled_func = function()
+        return self.enabled and self.state.book_status.id ~= nil
+      end,
+      callback = function(menu_instance)
+        local file = self.ui.document.file
+        local user_book_id = self.state.book_status.id
+        local saved_review = self.state.book_status.review_raw or ""
+        local saved_review_html = self.state.book_status.review or ""
+        local draft = self.settings:getReviewDraft(file)
+
+        local initial_text
+        local restored_from_draft = false
+        if draft and draft ~= saved_review then
+          initial_text = draft
+          restored_from_draft = true
+        else
+          initial_text = saved_review
+        end
+
+        local function openEditor()
+          if restored_from_draft then
+            UIManager:show(InfoMessage:new {
+              text = _("Restored unsaved draft."),
+              timeout = 2,
+            })
+          end
+
+          local dialog
+          local function dismiss_with_draft(text)
+            if text and text ~= saved_review then
+              self.settings:setReviewDraft(file, text)
+            end
+            UIManager:close(dialog)
+          end
+
+          dialog = InputDialog:new {
+            title = _("Review"),
+            input = initial_text,
+            allow_newline = true,
+            fullscreen = true,
+            condensed = true,
+            add_scroll_buttons = true,
+            buttons = {
+              {
+                {
+                  text = _("Cancel"),
+                  id = "close",
+                  callback = function()
+                    local current = dialog:getInputText() or ""
+                    if current == initial_text then
+                      UIManager:close(dialog)
+                      return
+                    end
+                    UIManager:show(MultiConfirmBox:new {
+                      text = _("You have unsaved changes."),
+                      cancel_text = _("Continue editing"),
+                      choice1_text = _("Discard"),
+                      choice1_callback = function()
+                        UIManager:close(dialog)
+                      end,
+                      choice2_text = _("Save draft"),
+                      choice2_callback = function()
+                        dismiss_with_draft(current)
+                      end,
+                    })
+                  end
+                },
+                {
+                  text = _("Save"),
+                  is_enter_default = true,
+                  callback = function()
+                    local text = dialog:getInputText()
+                    self.wifi:wifiPrompt(function(wifi_enabled)
+                      Trapper:wrap(function()
+                        local result, err = Api:updateReview(user_book_id, text)
+                        if result then
+                          -- Sanity check: did the server actually take the update?
+                          -- Compare ignoring trailing whitespace differences.
+                          local sent = (text or ""):gsub("%s+$", "")
+                          local got = (result.review_raw or ""):gsub("%s+$", "")
+                          if sent ~= got then
+                            logger.warn("HardcoverApi:updateReview accepted but review_raw doesn't match. sent="
+                              .. tostring(sent):sub(1, 80) .. " got=" .. tostring(got):sub(1, 80))
+                            self.settings:setReviewDraft(file, text)
+                            self.dialog_manager:showError("Review save did not apply on Hardcover. Draft preserved.")
+                          else
+                            self.settings:clearReviewDraft(file)
+                            self.state.book_status = result
+                            UIManager:close(dialog)
+                            menu_instance:updateItems()
+                            UIManager:show(Notification:new {
+                              text = _("Review saved to Hardcover"),
+                            })
+                          end
+                        else
+                          self.settings:setReviewDraft(file, text)
+                          local message = err
+                            and ("Review could not be saved: " .. tostring(err))
+                            or "Review could not be saved"
+                          self.dialog_manager:showError(message)
+                        end
+
+                        if wifi_enabled then
+                          UIManager:nextTick(function()
+                            self.wifi:wifiDisablePrompt()
+                          end)
+                        end
+                      end)
+                    end)
+                  end
+                }
+              }
+            }
+          }
+          UIManager:show(dialog)
+          dialog:onShowKeyboard()
+        end
+
+        if ReviewFormat.hasRichFormatting(saved_review_html) then
+          UIManager:show(ConfirmBox:new {
+            text = _("This review contains formatting that will be lost if you save changes here. Edit anyway?"),
+            ok_text = _("Edit anyway"),
+            cancel_text = _("Cancel"),
+            ok_callback = openEditor,
+          })
+        else
+          openEditor()
         end
       end,
       keep_menu_open = true,

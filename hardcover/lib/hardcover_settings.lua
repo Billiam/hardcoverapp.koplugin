@@ -202,4 +202,16 @@ function HardcoverSettings:menuConfirm()
   return self.settings:readSetting(SETTING.MENU_CONFIRMATION) == true
 end
 
+function HardcoverSettings:getReviewDraft(filename)
+  return self:readBookSetting(filename, "review_draft")
+end
+
+function HardcoverSettings:setReviewDraft(filename, text)
+  self:updateBookSetting(filename, { review_draft = text })
+end
+
+function HardcoverSettings:clearReviewDraft(filename)
+  self:updateBookSetting(filename, { _delete = { "review_draft" } })
+end
+
 return HardcoverSettings

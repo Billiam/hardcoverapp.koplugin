@@ -147,6 +147,7 @@ function HardcoverApp:init()
     settings = self.settings,
     state = self.state,
     ui = self.ui,
+    wifi = self.wifi,
   }
 
   self:onDispatcherRegisterActions()

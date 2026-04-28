@@ -64,6 +64,16 @@ Selecting text to quote:
 After selecting document text in a linked document, choose `Hardcover quote` from the highlight menu to display the
 journal entry form, prefilled with the selected text and page.
 
+### Reviewing a book
+
+You can write a Hardcover review for a linked book from `Update status` → `Review`.
+
+The editor accepts plain text with paragraph breaks (separate paragraphs with a blank line). Tap **Save** to send the review to Hardcover; tap **Cancel** to dismiss. Saving an empty review clears the review on Hardcover.
+
+If you've previously written a review for this book on Hardcover with rich formatting (bold, italic, links, etc.), you'll be warned before opening the editor — saving from here will flatten the review to plain text.
+
+If you start writing a review and dismiss the dialog by mistake, your text is preserved as a draft and restored the next time you open the editor for the same book.
+
 ### Automatically track progress
 
 Automatic progress tracking is optional: book status and reading progress can instead be

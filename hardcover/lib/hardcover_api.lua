@@ -10,6 +10,7 @@ local NetworkManager = require("ui/network/manager")
 local socketutil = require("socketutil")
 
 local Book = require("hardcover/lib/book")
+local ReviewFormat = require("hardcover/lib/review_format")
 local VERSION = require("hardcover_version")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
@@ -75,6 +76,8 @@ fragment UserBookParts on user_books {
   edition_id
   privacy_setting_id
   rating
+  review
+  review_raw
   user_book_reads(order_by: {id: asc}) {
     id
     started_at
@@ -645,6 +648,37 @@ function HardcoverApi:updateRating(user_book_id, rating)
   if result and result.update_user_book then
     return result.update_user_book.user_book
   end
+end
+
+function HardcoverApi:updateReview(user_book_id, plain_text)
+  local query = [[
+    mutation ($id: Int!, $review: jsonb) {
+      update_user_book(id: $id, object: { review_slate: $review }) {
+        error
+        user_book {
+          ...UserBookParts
+        }
+      }
+    }
+  ]] .. user_book_fragment
+
+  local slate = ReviewFormat.buildSlateDocument(plain_text)
+  if slate == nil then
+    slate = json.util.null
+  end
+
+  local result = self:query(query, { id = user_book_id, review = slate })
+  if not (result and result.update_user_book) then
+    return nil
+  end
+
+  local mutation = result.update_user_book
+  if mutation.error then
+    logger.warn("HardcoverApi:updateReview server error:", mutation.error)
+    return nil, mutation.error
+  end
+
+  return mutation.user_book
 end
 
 function HardcoverApi:removeRead(user_book_id)
