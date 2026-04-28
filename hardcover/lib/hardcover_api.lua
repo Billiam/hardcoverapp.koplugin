@@ -76,6 +76,7 @@ fragment UserBookParts on user_books {
   edition_id
   privacy_setting_id
   rating
+  review
   review_raw
   user_book_reads(order_by: {id: asc}) {
     id

@@ -11,12 +11,14 @@ local Font = require("ui/font")
 local UIManager = require("ui/uimanager")
 
 local UpdateDoubleSpinWidget = require("hardcover/lib/ui/update_double_spin_widget")
+local ConfirmBox = require("ui/widget/confirmbox")
 local InfoMessage = require("ui/widget/infomessage")
 local InputDialog = require("ui/widget/inputdialog")
 local SpinWidget = require("ui/widget/spinwidget")
 
 local Api = require("hardcover/lib/hardcover_api")
 local Github = require("hardcover/lib/github")
+local ReviewFormat = require("hardcover/lib/review_format")
 local User = require("hardcover/lib/user")
 local _t = require("hardcover/lib/table_util")
 
@@ -518,6 +520,7 @@ function HardcoverMenu:getStatusSubMenuItems()
         local file = self.ui.document.file
         local user_book_id = self.state.book_status.id
         local saved_review = self.state.book_status.review_raw or ""
+        local saved_review_html = self.state.book_status.review or ""
         local draft = self.settings:getReviewDraft(file)
 
         local initial_text
@@ -531,62 +534,72 @@ function HardcoverMenu:getStatusSubMenuItems()
           initial_text = saved_review
         end
 
-        local dialog
-        dialog = InputDialog:new {
-          title = _("Review"),
-          input = initial_text,
-          allow_newline = true,
-          close_callback = function()
-            -- Persist a draft on any close path (Cancel, tap-outside, back).
-            -- The successful-Save branch clears _text_modified before closing
-            -- to suppress this.
-            if dialog._text_modified then
-              local current = dialog:getInputText()
-              if current ~= saved_review then
-                self.settings:setReviewDraft(file, current)
+        local function openEditor()
+          local dialog
+          dialog = InputDialog:new {
+            title = _("Review"),
+            input = initial_text,
+            allow_newline = true,
+            close_callback = function()
+              if dialog._text_modified then
+                local current = dialog:getInputText()
+                if current ~= saved_review then
+                  self.settings:setReviewDraft(file, current)
+                end
               end
-            end
-          end,
-          buttons = {
-            {
+            end,
+            buttons = {
               {
-                text = _("Cancel"),
-                id = "close",
-                callback = function()
-                  UIManager:close(dialog)
-                end
-              },
-              {
-                text = _("Save"),
-                is_enter_default = true,
-                callback = function()
-                  local text = dialog:getInputText()
-                  self.wifi:wifiPrompt(function(wifi_enabled)
-                    local result = Api:updateReview(user_book_id, text)
-                    if result then
-                      self.settings:clearReviewDraft(file)
-                      self.state.book_status = result
-                      dialog._text_modified = false
-                      UIManager:close(dialog)
-                      menu_instance:updateItems()
-                    else
-                      self.settings:setReviewDraft(file, text)
-                      self.dialog_manager:showError("Review could not be saved")
-                    end
+                {
+                  text = _("Cancel"),
+                  id = "close",
+                  callback = function()
+                    UIManager:close(dialog)
+                  end
+                },
+                {
+                  text = _("Save"),
+                  is_enter_default = true,
+                  callback = function()
+                    local text = dialog:getInputText()
+                    self.wifi:wifiPrompt(function(wifi_enabled)
+                      local result = Api:updateReview(user_book_id, text)
+                      if result then
+                        self.settings:clearReviewDraft(file)
+                        self.state.book_status = result
+                        dialog._text_modified = false
+                        UIManager:close(dialog)
+                        menu_instance:updateItems()
+                      else
+                        self.settings:setReviewDraft(file, text)
+                        self.dialog_manager:showError("Review could not be saved")
+                      end
 
-                    if wifi_enabled then
-                      UIManager:nextTick(function()
-                        self.wifi:wifiDisablePrompt()
-                      end)
-                    end
-                  end)
-                end
+                      if wifi_enabled then
+                        UIManager:nextTick(function()
+                          self.wifi:wifiDisablePrompt()
+                        end)
+                      end
+                    end)
+                  end
+                }
               }
             }
           }
-        }
-        UIManager:show(dialog)
-        dialog:onShowKeyboard()
+          UIManager:show(dialog)
+          dialog:onShowKeyboard()
+        end
+
+        if ReviewFormat.hasRichFormatting(saved_review_html) then
+          UIManager:show(ConfirmBox:new {
+            text = _("This review contains formatting that will be lost if you save changes here. Edit anyway?"),
+            ok_text = _("Edit anyway"),
+            cancel_text = _("Cancel"),
+            ok_callback = openEditor,
+          })
+        else
+          openEditor()
+        end
       end,
       hold_callback = function(menu_instance)
         local file = self.ui.document.file
