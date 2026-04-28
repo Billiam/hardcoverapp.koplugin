@@ -71,4 +71,35 @@ describe("ReviewFormat", function()
       assert.are.equal("Line one.\nLine two.", result.document.children[1].children[1].text)
     end)
   end)
+
+  describe("hasRichFormatting", function()
+    it("returns false for a single plain paragraph", function()
+      assert.is_false(ReviewFormat.hasRichFormatting("<p>Just plain text.</p>"))
+    end)
+
+    it("returns false for multiple plain paragraphs with line breaks", function()
+      assert.is_false(ReviewFormat.hasRichFormatting("<p>One.</p><p>Two.<br>still two.</p>"))
+    end)
+
+    it("returns false for nil or empty input", function()
+      assert.is_false(ReviewFormat.hasRichFormatting(nil))
+      assert.is_false(ReviewFormat.hasRichFormatting(""))
+    end)
+
+    it("returns false for the empty-paragraph artifact <p><br></p>", function()
+      assert.is_false(ReviewFormat.hasRichFormatting("<p><br></p>"))
+    end)
+
+    it("returns true when there is bold markup", function()
+      assert.is_true(ReviewFormat.hasRichFormatting("<p>Some <strong>bold</strong> text.</p>"))
+    end)
+
+    it("returns true when there is a link", function()
+      assert.is_true(ReviewFormat.hasRichFormatting('<p>See <a href="x">this</a>.</p>'))
+    end)
+
+    it("returns true when there is italic markup", function()
+      assert.is_true(ReviewFormat.hasRichFormatting("<p>Some <em>italic</em> text.</p>"))
+    end)
+  end)
 end)

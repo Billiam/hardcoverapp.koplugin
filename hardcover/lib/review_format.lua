@@ -47,4 +47,19 @@ function ReviewFormat.buildSlateDocument(plain_text)
   }
 end
 
+function ReviewFormat.hasRichFormatting(html)
+  if html == nil or html == "" then
+    return false
+  end
+
+  -- Strip the markup that plain-text round-trips through Hardcover's renderer:
+  -- <p>, </p>, <br>, <br/>, <br />. If anything else with a `<` remains, it's rich.
+  local stripped = html
+  stripped = string.gsub(stripped, "<p>", "")
+  stripped = string.gsub(stripped, "</p>", "")
+  stripped = string.gsub(stripped, "<br%s*/?>", "")
+
+  return string.find(stripped, "<", 1, true) ~= nil
+end
+
 return ReviewFormat
