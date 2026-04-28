@@ -593,15 +593,29 @@ function HardcoverMenu:getStatusSubMenuItems()
                     local text = dialog:getInputText()
                     self.wifi:wifiPrompt(function(wifi_enabled)
                       Trapper:wrap(function()
-                        local result = Api:updateReview(user_book_id, text)
+                        local result, err = Api:updateReview(user_book_id, text)
                         if result then
-                          self.settings:clearReviewDraft(file)
-                          self.state.book_status = result
-                          UIManager:close(dialog)
-                          menu_instance:updateItems()
+                          -- Sanity check: did the server actually take the update?
+                          -- Compare ignoring trailing whitespace differences.
+                          local sent = (text or ""):gsub("%s+$", "")
+                          local got = (result.review_raw or ""):gsub("%s+$", "")
+                          if sent ~= got then
+                            logger.warn("HardcoverApi:updateReview accepted but review_raw doesn't match. sent="
+                              .. tostring(sent):sub(1, 80) .. " got=" .. tostring(got):sub(1, 80))
+                            self.settings:setReviewDraft(file, text)
+                            self.dialog_manager:showError("Review save did not apply on Hardcover. Draft preserved.")
+                          else
+                            self.settings:clearReviewDraft(file)
+                            self.state.book_status = result
+                            UIManager:close(dialog)
+                            menu_instance:updateItems()
+                          end
                         else
                           self.settings:setReviewDraft(file, text)
-                          self.dialog_manager:showError("Review could not be saved")
+                          local message = err
+                            and ("Review could not be saved: " .. tostring(err))
+                            or "Review could not be saved"
+                          self.dialog_manager:showError(message)
                         end
 
                         if wifi_enabled then
@@ -638,14 +652,16 @@ function HardcoverMenu:getStatusSubMenuItems()
           ok_callback = function()
             self.wifi:wifiPrompt(function(wifi_enabled)
               Trapper:wrap(function()
-                local result = Api:updateReview(self.state.book_status.id, nil)
+                local result, err = Api:updateReview(self.state.book_status.id, nil)
                 if result then
                   self.settings:clearReviewDraft(file)
                   self.state.book_status = result
                   menu_instance:updateItems()
                 else
-                  -- Don't wipe the draft if the server clear didn't succeed.
-                  self.dialog_manager:showError("Review could not be cleared")
+                  local message = err
+                    and ("Review could not be cleared: " .. tostring(err))
+                    or "Review could not be cleared"
+                  self.dialog_manager:showError(message)
                 end
 
                 if wifi_enabled then

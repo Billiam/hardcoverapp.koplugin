@@ -668,9 +668,17 @@ function HardcoverApi:updateReview(user_book_id, plain_text)
   end
 
   local result = self:query(query, { id = user_book_id, review = slate })
-  if result and result.update_user_book then
-    return result.update_user_book.user_book
+  if not (result and result.update_user_book) then
+    return nil
   end
+
+  local mutation = result.update_user_book
+  if mutation.error then
+    logger.warn("HardcoverApi:updateReview server error:", mutation.error)
+    return nil, mutation.error
+  end
+
+  return mutation.user_book
 end
 
 function HardcoverApi:removeRead(user_book_id)
