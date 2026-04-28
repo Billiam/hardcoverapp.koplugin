@@ -540,17 +540,20 @@ function HardcoverMenu:getStatusSubMenuItems()
             })
           end
 
+          local save_succeeded = false
+
           local dialog
           dialog = InputDialog:new {
             title = _("Review"),
             input = initial_text,
             allow_newline = true,
             close_callback = function()
-              if dialog._text_modified then
-                local current = dialog:getInputText()
-                if current ~= saved_review then
-                  self.settings:setReviewDraft(file, current)
-                end
+              if save_succeeded then
+                return
+              end
+              local current = dialog:getInputText() or ""
+              if current ~= saved_review then
+                self.settings:setReviewDraft(file, current)
               end
             end,
             buttons = {
@@ -572,7 +575,7 @@ function HardcoverMenu:getStatusSubMenuItems()
                       if result then
                         self.settings:clearReviewDraft(file)
                         self.state.book_status = result
-                        dialog._text_modified = false
+                        save_succeeded = true
                         UIManager:close(dialog)
                         menu_instance:updateItems()
                       else
