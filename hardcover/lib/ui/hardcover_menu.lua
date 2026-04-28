@@ -515,14 +515,38 @@ function HardcoverMenu:getStatusSubMenuItems()
         return self.enabled and self.state.book_status.id ~= nil
       end,
       callback = function(menu_instance)
+        local file = self.ui.document.file
         local user_book_id = self.state.book_status.id
-        local initial_text = self.state.book_status.review_raw or ""
+        local saved_review = self.state.book_status.review_raw or ""
+        local draft = self.settings:getReviewDraft(file)
+
+        local initial_text
+        if draft and draft ~= saved_review then
+          initial_text = draft
+          UIManager:show(InfoMessage:new {
+            text = _("Restored unsaved draft."),
+            timeout = 2,
+          })
+        else
+          initial_text = saved_review
+        end
 
         local dialog
         dialog = InputDialog:new {
           title = _("Review"),
           input = initial_text,
           allow_newline = true,
+          close_callback = function()
+            -- Persist a draft on any close path (Cancel, tap-outside, back).
+            -- The successful-Save branch clears _text_modified before closing
+            -- to suppress this.
+            if dialog._text_modified then
+              local current = dialog:getInputText()
+              if current ~= saved_review then
+                self.settings:setReviewDraft(file, current)
+              end
+            end
+          end,
           buttons = {
             {
               {
@@ -540,10 +564,13 @@ function HardcoverMenu:getStatusSubMenuItems()
                   self.wifi:wifiPrompt(function(wifi_enabled)
                     local result = Api:updateReview(user_book_id, text)
                     if result then
+                      self.settings:clearReviewDraft(file)
                       self.state.book_status = result
+                      dialog._text_modified = false
                       UIManager:close(dialog)
                       menu_instance:updateItems()
                     else
+                      self.settings:setReviewDraft(file, text)
                       self.dialog_manager:showError("Review could not be saved")
                     end
 
@@ -562,15 +589,18 @@ function HardcoverMenu:getStatusSubMenuItems()
         dialog:onShowKeyboard()
       end,
       hold_callback = function(menu_instance)
+        local file = self.ui.document.file
         self.dialog_manager:maybeConfirm({
           text = "Clear book review?",
           ok_callback = function()
             self.wifi:wifiPrompt(function(wifi_enabled)
               local result = Api:updateReview(self.state.book_status.id, nil)
               if result then
+                self.settings:clearReviewDraft(file)
                 self.state.book_status = result
                 menu_instance:updateItems()
               else
+                -- Don't wipe the draft if the server clear didn't succeed.
                 self.dialog_manager:showError("Review could not be cleared")
               end
 
