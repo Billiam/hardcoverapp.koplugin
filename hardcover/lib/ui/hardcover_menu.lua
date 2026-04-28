@@ -170,11 +170,21 @@ function HardcoverMenu:getSubMenuItems(book_view)
           self.wifi:wifiPrompt(function(wifi_enabled)
             if not wifi_enabled then return end
             self.cache:cacheUserBook()
+            -- Walk the UI stack for an open TouchMenu (item_table_stack is
+            -- the discriminator). It lives either directly on the stack or
+            -- wrapped in a menu_container (the ReaderMenu pattern, where
+            -- container[1] is the TouchMenu).
             for i = #UIManager._window_stack, 1, -1 do
               local widget = UIManager._window_stack[i].widget
-              if widget and widget.updateItems and widget.item_table then
-                widget:updateItems()
-                break
+              if widget then
+                if widget.updateItems and widget.item_table_stack then
+                  widget:updateItems()
+                  return
+                end
+                if widget[1] and widget[1].updateItems and widget[1].item_table_stack then
+                  widget[1]:updateItems()
+                  return
+                end
               end
             end
           end)
