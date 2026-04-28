@@ -524,17 +524,22 @@ function HardcoverMenu:getStatusSubMenuItems()
         local draft = self.settings:getReviewDraft(file)
 
         local initial_text
+        local restored_from_draft = false
         if draft and draft ~= saved_review then
           initial_text = draft
-          UIManager:show(InfoMessage:new {
-            text = _("Restored unsaved draft."),
-            timeout = 2,
-          })
+          restored_from_draft = true
         else
           initial_text = saved_review
         end
 
         local function openEditor()
+          if restored_from_draft then
+            UIManager:show(InfoMessage:new {
+              text = _("Restored unsaved draft."),
+              timeout = 2,
+            })
+          end
+
           local dialog
           dialog = InputDialog:new {
             title = _("Review"),
