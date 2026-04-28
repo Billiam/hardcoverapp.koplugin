@@ -9,6 +9,8 @@ local T = require("ffi/util").template
 
 local Font = require("ui/font")
 local UIManager = require("ui/uimanager")
+local NetworkMgr = require("ui/network/manager")
+local Notification = require("ui/widget/notification")
 
 local UpdateDoubleSpinWidget = require("hardcover/lib/ui/update_double_spin_widget")
 local ConfirmBox = require("ui/widget/confirmbox")
@@ -157,14 +159,19 @@ function HardcoverMenu:getSubMenuItems(book_view)
         return self.settings:bookLinked()
       end,
       sub_item_table_func = function()
-        self.wifi:wifiPrompt(function(wifi_enabled)
-          self.cache:cacheUserBook()
-          if wifi_enabled then
-            UIManager:nextTick(function()
-              self.wifi:wifiDisablePrompt()
-            end)
-          end
-        end)
+        -- Try cache synchronously; succeeds if wifi is already on.
+        self.cache:cacheUserBook()
+
+        -- If wifi is off, prompt for it. Don't auto-disable — the user
+        -- is about to interact with menu items that need wifi.
+        if not NetworkMgr:isWifiOn() then
+          self.wifi:wifiPrompt(function(wifi_enabled)
+            if wifi_enabled then
+              self.cache:cacheUserBook()
+            end
+          end)
+        end
+
         return self:getStatusSubMenuItems()
       end,
       separator = true
@@ -561,6 +568,9 @@ function HardcoverMenu:getStatusSubMenuItems()
             title = _("Review"),
             input = initial_text,
             allow_newline = true,
+            fullscreen = true,
+            condensed = true,
+            add_scroll_buttons = true,
             buttons = {
               {
                 {
@@ -609,6 +619,9 @@ function HardcoverMenu:getStatusSubMenuItems()
                             self.state.book_status = result
                             UIManager:close(dialog)
                             menu_instance:updateItems()
+                            UIManager:show(Notification:new {
+                              text = _("Review saved to Hardcover"),
+                            })
                           end
                         else
                           self.settings:setReviewDraft(file, text)
@@ -657,6 +670,9 @@ function HardcoverMenu:getStatusSubMenuItems()
                   self.settings:clearReviewDraft(file)
                   self.state.book_status = result
                   menu_instance:updateItems()
+                  UIManager:show(Notification:new {
+                    text = _("Review cleared on Hardcover"),
+                  })
                 else
                   local message = err
                     and ("Review could not be cleared: " .. tostring(err))
