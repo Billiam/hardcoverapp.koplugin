@@ -41,5 +41,34 @@ describe("ReviewFormat", function()
     it("returns nil for nil input", function()
       assert.is_nil(ReviewFormat.buildSlateDocument(nil))
     end)
+
+    it("ignores leading double newlines", function()
+      local result = ReviewFormat.buildSlateDocument("\n\nActual text.")
+
+      assert.are.equal(1, #result.document.children)
+      assert.are.equal("Actual text.", result.document.children[1].children[1].text)
+    end)
+
+    it("ignores trailing double newlines", function()
+      local result = ReviewFormat.buildSlateDocument("Actual text.\n\n")
+
+      assert.are.equal(1, #result.document.children)
+      assert.are.equal("Actual text.", result.document.children[1].children[1].text)
+    end)
+
+    it("collapses multiple consecutive blank lines", function()
+      local result = ReviewFormat.buildSlateDocument("First.\n\n\n\nSecond.")
+
+      assert.are.equal(2, #result.document.children)
+      assert.are.equal("First.", result.document.children[1].children[1].text)
+      assert.are.equal("Second.", result.document.children[2].children[1].text)
+    end)
+
+    it("treats a single newline as part of the paragraph, not a separator", function()
+      local result = ReviewFormat.buildSlateDocument("Line one.\nLine two.")
+
+      assert.are.equal(1, #result.document.children)
+      assert.are.equal("Line one.\nLine two.", result.document.children[1].children[1].text)
+    end)
   end)
 end)
