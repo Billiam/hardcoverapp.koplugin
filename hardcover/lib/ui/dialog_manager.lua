@@ -45,13 +45,17 @@ local function mapJournalData(data)
   end
 
   if data.page then
-    result.metadata = {
-      position = {
-        type = "pages",
-        value = data.page,
-        possible = data.pages
-      }
+    local position = {
+      type = "pages",
+      value = data.page,
+      possible = data.pages
     }
+
+    if type(data.pages) == "number" and data.pages > 0 then
+      position.percent = (data.page / data.pages) * 100
+    end
+
+    result.metadata = { position = position }
   end
 
   return result
