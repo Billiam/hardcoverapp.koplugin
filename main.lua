@@ -28,6 +28,7 @@ local User = require("hardcover/lib/user")
 
 local DialogManager = require("hardcover/lib/ui/dialog_manager")
 local HardcoverMenu = require("hardcover/lib/ui/hardcover_menu")
+local JournalExporter = require("hardcover/lib/journal_exporter")
 
 local HARDCOVER = require("hardcover/lib/constants/hardcover")
 local SETTING = require("hardcover/lib/constants/settings")
@@ -69,6 +70,13 @@ function HardcoverApp:onDispatcherRegisterActions()
     category = "none",
     event = "HardcoverUpdateProgress",
     title = _("Hardcover: Update progress"),
+    general = true,
+  })
+
+  Dispatcher:registerAction("hardcover_export_journal", {
+    category = "none",
+    event = "HardcoverExportJournal",
+    title = _("Hardcover: Export annotations to journal"),
     general = true,
   })
 
@@ -128,6 +136,13 @@ function HardcoverApp:init()
     ui = self.ui,
     wifi = self.wifi
   }
+  self.journal_exporter = JournalExporter:new {
+    page_mapper = self.page_mapper,
+    settings = self.settings,
+    state = self.state,
+    ui = self.ui,
+    wifi = self.wifi
+  }
   self.hardcover = Hardcover:new {
     cache = self.cache,
     dialog_manager = self.dialog_manager,
@@ -143,6 +158,7 @@ function HardcoverApp:init()
     cache = self.cache,
     dialog_manager = self.dialog_manager,
     hardcover = self.hardcover,
+    journal_exporter = self.journal_exporter,
     page_mapper = self.page_mapper,
     settings = self.settings,
     state = self.state,
@@ -237,6 +253,10 @@ function HardcoverApp:onHardcoverUpdateProgress()
       icon = "notice-warning",
     })
   end
+end
+
+function HardcoverApp:onHardcoverExportJournal()
+  self.journal_exporter:export()
 end
 
 function HardcoverApp:onHardcoverSuggestBook()

@@ -64,6 +64,23 @@ Selecting text to quote:
 After selecting document text in a linked document, choose `Hardcover quote` from the highlight menu to display the
 journal entry form, prefilled with the selected text and page.
 
+### Export annotations to journal
+
+All of a book's highlights and notes can be exported to your Hardcover journal in one go using
+`Update status -> Export annotations to journal`. Each highlight becomes a `quote` journal entry, and each highlight
+with an attached note becomes a `note` entry containing both the quoted text and your note. Entries are dated
+(`action_at`) with the day the highlight was created in KOReader, so your journal reflects when you actually read each
+passage, and include the (mapped) page number when available. Entry visibility uses the book's current status privacy,
+defaulting to public.
+
+The plugin remembers which annotations have already been exported (per book), so running the export again only sends
+new annotations, and an interrupted export can be resumed without creating duplicates. Tap and hold the menu item to
+forget this history and export everything again. Tapping the progress message cancels a running export.
+
+Entries are sent one per second to respect Hardcover's API rate limit, so exporting a large number of annotations can
+take a little while. The export can also be triggered from a gesture using the
+`Hardcover: Export annotations to journal` action.
+
 ### Automatically track progress
 
 Automatic progress tracking is optional: book status and reading progress can instead be

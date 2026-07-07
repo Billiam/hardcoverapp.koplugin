@@ -456,6 +456,32 @@ function HardcoverMenu:getStatusSubMenuItems()
     },
     {
       text_func = function()
+        local pending = self.journal_exporter:pendingCount()
+        if pending > 0 then
+          return T(_("Export annotations to journal: %1 new"), pending)
+        end
+        return _("Export annotations to journal")
+      end,
+      enabled_func = function()
+        return self.enabled and self.settings:bookLinked() and self.journal_exporter:pendingCount() > 0
+      end,
+      callback = function()
+        self.journal_exporter:export()
+      end,
+      hold_callback = function(menu_instance)
+        self.dialog_manager:confirm({
+          text = _("Forget which annotations were already exported? The next export will send all of them again."),
+          ok_text = _("Reset"),
+          ok_callback = function()
+            self.journal_exporter:clearHistory()
+            menu_instance:updateItems()
+          end
+        })
+      end,
+      keep_menu_open = true
+    },
+    {
+      text_func = function()
         local text
         if self.state.book_status.rating then
           text = "Update rating"
