@@ -4,3 +4,4 @@ hardcover_config.lua
 /lua_modules
 /.luarocks
 .DS_STORE
+test/e2e/work/
