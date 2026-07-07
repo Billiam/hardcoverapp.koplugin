@@ -73,13 +73,23 @@ with an attached note becomes a `note` entry containing both the quoted text and
 passage, and include the (mapped) page number when available. Entry visibility uses the book's current status privacy,
 defaulting to public.
 
-The plugin remembers which annotations have already been exported (per book), so running the export again only sends
-new annotations, and an interrupted export can be resumed without creating duplicates. Tap and hold the menu item to
-forget this history and export everything again. Tapping the progress message cancels a running export.
+The export runs in the background: entries are sent one per second (respecting Hardcover's API rate limit) while you
+keep reading, and a notification is shown when the export finishes. The export can also be triggered from a gesture
+using the `Hardcover: Export annotations to journal` action.
 
-Entries are sent one per second to respect Hardcover's API rate limit, so exporting a large number of annotations can
-take a little while. The export can also be triggered from a gesture using the
-`Hardcover: Export annotations to journal` action.
+The plugin remembers which annotations have already been exported (per book), so running the export again only sends
+new annotations, and an interrupted export resumes without creating duplicates. Tap and hold the menu item to
+forget this history and export everything again.
+
+### Automatically export annotations
+
+With the `Automatically export annotations to journal` setting enabled, new highlights and notes are exported
+automatically every 30 minutes while a linked book is open — completely in the background, with no prompts or
+notifications. Failed entries are retried on the next cycle.
+
+If wifi is off, the automatic export only runs when [wifi on demand](#enable-wifi-on-demand) is enabled, in which case
+wifi is switched on for the export and back off afterwards. Otherwise the cycle is silently skipped until wifi is
+available.
 
 ### Automatically track progress
 

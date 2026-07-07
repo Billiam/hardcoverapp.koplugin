@@ -44,6 +44,10 @@ local HardcoverApp = WidgetContainer:extend {
 
 local HIGHLIGHT_MENU_NAME = "13_0_make_hardcover_highlight_item"
 
+-- automatic journal export cadence, in seconds
+local AUTO_EXPORT_INITIAL_DELAY = 5 * 60
+local AUTO_EXPORT_INTERVAL = 30 * 60
+
 function HardcoverApp:onDispatcherRegisterActions()
   Dispatcher:registerAction("hardcover_link", {
     category = "none",
@@ -259,6 +263,27 @@ function HardcoverApp:onHardcoverExportJournal()
   self.journal_exporter:export()
 end
 
+function HardcoverApp:scheduleJournalAutoExport()
+  self:cancelJournalAutoExport()
+
+  if not self.settings:readSetting(SETTING.AUTO_EXPORT_JOURNAL) or not self.ui.document then
+    return
+  end
+
+  self._journal_export_task = function()
+    self.journal_exporter:exportSilently()
+    UIManager:scheduleIn(AUTO_EXPORT_INTERVAL, self._journal_export_task)
+  end
+  UIManager:scheduleIn(AUTO_EXPORT_INITIAL_DELAY, self._journal_export_task)
+end
+
+function HardcoverApp:cancelJournalAutoExport()
+  if self._journal_export_task then
+    UIManager:unschedule(self._journal_export_task)
+    self._journal_export_task = nil
+  end
+end
+
 function HardcoverApp:onHardcoverSuggestBook()
   self.hardcover:showRandomBookDialog()
 end
@@ -278,6 +303,12 @@ function HardcoverApp:onSettingsChanged(field, change, original_value)
 
     if self:_bookSettingChanged(book_settings, "book_id") then
       self:registerHighlight()
+    end
+  elseif field == SETTING.AUTO_EXPORT_JOURNAL then
+    if change then
+      self:scheduleJournalAutoExport()
+    else
+      self:cancelJournalAutoExport()
     end
   elseif field == SETTING.TRACK_METHOD then
     self:cancelPendingUpdates()
@@ -401,6 +432,8 @@ function HardcoverApp:onReaderReady()
   if self.ui.document and (self.settings:syncEnabled() or (not self.settings:bookLinked() and self.settings:autolinkEnabled())) then
     UIManager:scheduleIn(2, self.startReadCache, self)
   end
+
+  self:scheduleJournalAutoExport()
 end
 
 function HardcoverApp:cancelPendingUpdates()
@@ -417,6 +450,9 @@ end
 
 function HardcoverApp:onDocumentClose()
   UIManager:unschedule(self.startCacheRead)
+
+  self:cancelJournalAutoExport()
+  self.journal_exporter:cancel()
 
   self:cancelPendingUpdates()
   self.state.read_cache_started = false
@@ -436,6 +472,9 @@ function HardcoverApp:onDocumentClose()
 end
 
 function HardcoverApp:onSuspend()
+  self:cancelJournalAutoExport()
+  self.journal_exporter:cancel()
+
   self:cancelPendingUpdates()
 
   Scheduler:clear()
@@ -446,6 +485,8 @@ function HardcoverApp:onResume()
   if self.settings:readSetting(SETTING.ENABLE_WIFI) and self.ui.document and self.settings:syncEnabled() then
     UIManager:scheduleIn(2, self.startReadCache, self)
   end
+
+  self:scheduleJournalAutoExport()
 end
 
 function HardcoverApp:updatePageNow(callback)
@@ -462,6 +503,8 @@ function HardcoverApp:onNetworkDisconnecting()
   if self.settings:readSetting(SETTING.ENABLE_WIFI) then
     return
   end
+
+  self.journal_exporter:cancel()
 
   self:cancelPendingUpdates()
 

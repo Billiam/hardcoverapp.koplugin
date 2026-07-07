@@ -45,6 +45,38 @@ function AutoWifi:withWifi(callback)
   end
 end
 
+-- Silently ensure wifi is available and keep it up until the caller is done.
+-- The callback receives a release function which must be called when all
+-- network activity has finished; it turns wifi back off if it was enabled here.
+-- If wifi is off and cannot be enabled without user interaction, the callback
+-- is not called at all.
+function AutoWifi:holdWifi(callback)
+  if NetworkMgr:isWifiOn() then
+    callback(function() end)
+    return
+  end
+
+  if self.settings:readSetting(SETTING.ENABLE_WIFI)
+      and not NetworkMgr.pending_connection
+      and Device:hasWifiRestore()
+      and G_reader_settings:nilOrFalse("airplanemode") then
+    local original_on = NetworkMgr.wifi_was_on
+
+    NetworkMgr:restoreWifiAsync()
+    NetworkMgr:scheduleConnectivityCheck(function()
+      -- restore original "was on" state to prevent wifi being restored automatically after suspend
+      NetworkMgr.wifi_was_on = original_on
+      G_reader_settings:saveSetting("wifi_was_on", original_on)
+
+      self.connection_pending = false
+
+      callback(function()
+        self:wifiDisableSilent()
+      end)
+    end)
+  end
+end
+
 function AutoWifi:wifiDisableSilent()
   NetworkMgr:turnOffWifi(function()
     -- explicitly disable wifi was on

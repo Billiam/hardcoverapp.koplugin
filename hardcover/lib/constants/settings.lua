@@ -1,5 +1,6 @@
 local Settings = {
   ALWAYS_SYNC = "always_sync",
+  AUTO_EXPORT_JOURNAL = "auto_export_journal",
   BOOKS = "books",
   COMPATIBILITY_MODE = "compatibility_mode",
   ENABLE_WIFI = "enable_wifi",

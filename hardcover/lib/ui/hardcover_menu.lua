@@ -676,6 +676,23 @@ function HardcoverMenu:getSettingsSubMenuItems()
       end,
     },
     {
+      text = "Automatically export annotations to journal",
+      checked_func = function()
+        return self.settings:readSetting(SETTING.AUTO_EXPORT_JOURNAL) == true
+      end,
+      callback = function()
+        local setting = self.settings:readSetting(SETTING.AUTO_EXPORT_JOURNAL) == true
+        self.settings:updateSetting(SETTING.AUTO_EXPORT_JOURNAL, not setting)
+      end,
+      hold_callback = function()
+        UIManager:show(InfoMessage:new {
+          text = _([[While a linked book is open, new highlights and notes are exported to your Hardcover journal in the background every 30 minutes, without any prompts.
+
+If wifi is off, the export runs only when "Enable wifi on demand" is active.]]),
+        })
+      end
+    },
+    {
       text = "Enable wifi on demand",
       checked_func = function()
         return self.settings:readSetting(SETTING.ENABLE_WIFI) == true

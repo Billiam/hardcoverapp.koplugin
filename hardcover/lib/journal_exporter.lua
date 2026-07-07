@@ -1,13 +1,13 @@
 local _ = require("gettext")
-local socket = require("socket")
+local logger = require("logger")
 
 local T = require("ffi/util").template
 
-local Trapper = require("ui/trapper")
 local UIManager = require("ui/uimanager")
 
 local ConfirmBox = require("ui/widget/confirmbox")
 local InfoMessage = require("ui/widget/infomessage")
+local Notification = require("ui/widget/notification")
 
 local Api = require("hardcover/lib/hardcover_api")
 local JournalEntry = require("hardcover/lib/journal_entry")
@@ -21,7 +21,9 @@ local JournalExporter = {}
 JournalExporter.__index = JournalExporter
 
 function JournalExporter:new(o)
-  return setmetatable(o or {}, self)
+  o = o or {}
+  o.running = false
+  return setmetatable(o, self)
 end
 
 function JournalExporter:_annotations()
@@ -48,8 +50,42 @@ function JournalExporter:clearHistory()
   end
 end
 
+-- Stop a running export after the in-flight request completes.
+-- Already exported entries are remembered, so a later export resumes
+-- where this one stopped.
+function JournalExporter:cancel()
+  self.stop_requested = true
+end
+
+-- Silent export cycle for scheduled/background use: no dialogs, no
+-- notifications, nothing to tap. Skipped entirely when wifi is off and
+-- cannot be enabled without user interaction.
+function JournalExporter:exportSilently()
+  if self.running or not Api.enabled or not self.ui.document or not self.settings:bookLinked() then
+    return
+  end
+
+  local file = self.ui.document.file
+  local pending = JournalEntry.pending(self:_annotations(), self:_exported())
+  if #pending == 0 then
+    return
+  end
+
+  self.wifi:holdWifi(function(release_wifi)
+    self:_startQueue(file, pending, release_wifi)
+  end)
+end
+
+-- Manual export from the menu: confirmation up front, notification when done
 function JournalExporter:export()
   if not self.ui.document or not self.settings:bookLinked() then
+    return
+  end
+
+  if self.running then
+    UIManager:show(Notification:new {
+      text = _("Journal export already running"),
+    })
     return
   end
 
@@ -65,87 +101,91 @@ function JournalExporter:export()
   end
 
   UIManager:show(ConfirmBox:new {
-    text = T(_("Export %1 highlights and notes to your Hardcover journal?"), #pending),
+    text = T(_("Export %1 highlights and notes to your Hardcover journal?\n\nThe export runs in the background; you can keep reading."), #pending),
     ok_text = _("Export"),
     ok_callback = function()
-      self.wifi:withWifi(function()
-        Trapper:wrap(function()
-          self:_runExport(file, pending)
-        end)
+      self.wifi:wifiPrompt(function()
+        local pending_now = JournalEntry.pending(self:_annotations(), self:_exported())
+        if #pending_now > 0 then
+          self:_startQueue(file, pending_now, function() end, true)
+        end
       end)
     end
   })
 end
 
-function JournalExporter:_runExport(file, pending)
+function JournalExporter:_startQueue(file, pending, release_wifi, notify)
   local book_settings = self.settings:readBookSettings(file) or {}
   local remote_pages = self.settings:pages()
   local document_pages = self.ui.document:getPageCount()
   local exported = self.settings:readBookSetting(file, EXPORTED_SETTING) or {}
 
+  self.running = true
+  self.stop_requested = false
+
+  local index = 0
   local sent = 0
-  local aborted = false
-  local failed = false
 
-  for i, annotation in ipairs(pending) do
-    local go_on = Trapper:info(T(_("Exporting %1 of %2…"), i, #pending))
-    if not go_on then
-      aborted = true
-      break
+  local finish = function(failed)
+    self.running = false
+    release_wifi()
+
+    logger.info("hardcover: journal export finished;", sent, "of", #pending, "entries sent",
+      failed and "(stopped on error)" or "")
+
+    if notify then
+      local message
+      if failed then
+        message = T(_("Hardcover export stopped: %1 of %2 entries saved"), sent, #pending)
+      else
+        message = T(_("Hardcover: exported %1 journal entries"), sent)
+      end
+      UIManager:show(Notification:new {
+        text = message,
+      })
+    end
+  end
+
+  local step
+  step = function()
+    index = index + 1
+
+    -- stop when cancelled, or when the document changed under us
+    if self.stop_requested or not self.ui.document or self.ui.document.file ~= file then
+      return finish()
     end
 
-    local mapped_page
-    if annotation.pageno then
-      mapped_page = self.page_mapper:getMappedPage(annotation.pageno, document_pages, remote_pages)
+    if index > #pending then
+      return finish()
     end
 
+    local annotation = pending[index]
     local entry = JournalEntry.build(annotation, {
       book_id = book_settings.book_id,
       edition_id = book_settings.edition_id,
       privacy_setting_id = self.state.book_status.privacy_setting_id,
-      page = mapped_page,
+      page = annotation.pageno and self.page_mapper:getMappedPage(annotation.pageno, document_pages, remote_pages),
       pages = remote_pages
     })
 
-    if entry then
-      local result = Api:createJournalEntry(entry)
-      if not result then
-        socket.sleep(REQUEST_DELAY)
-        result = Api:createJournalEntry(entry)
-      end
+    if not entry then
+      return UIManager:nextTick(step)
+    end
 
+    Api:createJournalEntryAsync(entry, function(result)
       if result then
         sent = sent + 1
         exported[JournalEntry.annotationKey(annotation)] = result.id or true
         self.settings:updateBookSetting(file, { [EXPORTED_SETTING] = exported })
+        UIManager:scheduleIn(REQUEST_DELAY, step)
       else
-        failed = true
-        break
+        -- leave the remaining entries for the next run
+        finish(true)
       end
-
-      if i < #pending then
-        socket.sleep(REQUEST_DELAY)
-      end
-    end
+    end)
   end
 
-  Trapper:clear()
-
-  local message
-  if failed then
-    message = T(_("Export stopped: %1 of %2 entries saved. Retrying later will skip already exported entries."), sent,
-      #pending)
-  elseif aborted then
-    message = T(_("Export canceled: %1 of %2 entries saved"), sent, #pending)
-  else
-    message = T(_("Exported %1 journal entries"), sent)
-  end
-
-  UIManager:show(InfoMessage:new {
-    text = message,
-    icon = failed and "notice-warning" or nil,
-    timeout = failed and nil or 3
-  })
+  step()
 end
 
 return JournalExporter

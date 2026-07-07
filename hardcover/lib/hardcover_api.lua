@@ -7,6 +7,8 @@ local _t = require("hardcover/lib/table_util")
 local T = require("ffi/util").template
 local Trapper = require("ui/trapper")
 local NetworkManager = require("ui/network/manager")
+local UIManager = require("ui/uimanager")
+local ffiutil = require("ffi/util")
 local socketutil = require("socketutil")
 
 local Book = require("hardcover/lib/book")
@@ -98,39 +100,125 @@ function HardcoverApi:me()
   return {}
 end
 
+function HardcoverApi:parseResponse(content)
+  if not content or content == "" then
+    return nil, { completed = false }
+  end
+
+  local code, response = string.match(content, "^([^:]*):(.*)")
+  if code and string.find(code, "^%d%d%d") then
+    local ok, data = pcall(json.decode, response, json.decode.simple)
+    if not ok or not data then
+      return nil, { completed = false }
+    end
+
+    if data.data then
+      return data.data
+    elseif data.errors or data.error then
+      local err = data.errors or { data.error }
+      if self.on_error then
+        for _, e in ipairs(err) do
+          self.on_error(e)
+        end
+      end
+
+      return nil, { errors = err }
+    end
+
+    return nil, { completed = true }
+  end
+
+  return nil, { completed = false }
+end
+
 function HardcoverApi:query(query, parameters)
   if not NetworkManager:isConnected() or not self.enabled then
     return
   end
 
-  local completed, success, content
-
-  completed, content = Trapper:dismissableRunInSubprocess(function()
+  local completed, content = Trapper:dismissableRunInSubprocess(function()
     return self:_query(query, parameters)
   end, true, true)
 
   if completed and content then
-    local code, response = string.match(content, "^([^:]*):(.*)")
-    if string.find(code, "^%d%d%d") then
-      local data = json.decode(response, json.decode.simple)
-      if data.data then
-        return data.data
-      elseif data.errors or data.error then
-        local err = data.errors or { data.error }
-        if self.on_error then
-          for _, e in ipairs(err) do
-            self.on_error(e)
-          end
-        end
-
-        return nil, { errors = err }
-      end
-    else
-      return nil, { completed = false }
-    end
+    return self:parseResponse(content)
   else
     return nil, { completed = completed }
   end
+end
+
+-- Run a query in a forked subprocess without blocking the UI and without
+-- requiring a Trapper coroutine. The callback receives (data, err) once the
+-- request completes, is polled from the UIManager event loop, and is never
+-- called synchronously.
+function HardcoverApi:queryAsync(query, parameters, callback)
+  if not NetworkManager:isConnected() or not self.enabled then
+    UIManager:nextTick(function()
+      callback(nil, { completed = false })
+    end)
+    return
+  end
+
+  local pid, parent_read_fd = ffiutil.runInSubProcess(function(_pid, child_write_fd)
+    ffiutil.writeToFD(child_write_fd, self:_query(query, parameters) or "", true)
+  end, true)
+
+  if not pid then
+    UIManager:nextTick(function()
+      callback(nil, { completed = false })
+    end)
+    return
+  end
+
+  local collectSubprocess
+  collectSubprocess = function()
+    if ffiutil.isSubProcessDone(pid) then
+      if parent_read_fd then
+        ffiutil.readAllFromFD(parent_read_fd)
+        parent_read_fd = nil
+      end
+    else
+      if parent_read_fd and ffiutil.getNonBlockingReadSize(parent_read_fd) ~= 0 then
+        -- read the pipe so the subprocess's write() unblocks and it can exit
+        ffiutil.readAllFromFD(parent_read_fd)
+        parent_read_fd = nil
+      end
+      UIManager:scheduleIn(5, collectSubprocess)
+    end
+  end
+
+  local checks = 0
+  local poll
+  poll = function()
+    local subprocess_done = ffiutil.isSubProcessDone(pid)
+    local stuff_to_read = parent_read_fd and ffiutil.getNonBlockingReadSize(parent_read_fd) ~= 0
+
+    if subprocess_done or stuff_to_read then
+      local content
+      if parent_read_fd then
+        content = ffiutil.readAllFromFD(parent_read_fd)
+        parent_read_fd = nil
+      end
+      if not subprocess_done then
+        UIManager:scheduleIn(1, collectSubprocess)
+      end
+
+      callback(self:parseResponse(content))
+      return
+    end
+
+    checks = checks + 1
+    if checks > 240 then
+      -- ~60s: well past the socket timeouts, something is stuck
+      ffiutil.terminateSubProcess(pid)
+      UIManager:scheduleIn(5, collectSubprocess)
+      callback(nil, { completed = false })
+      return
+    end
+
+    UIManager:scheduleIn(0.25, poll)
+  end
+  UIManager:scheduleIn(0.25, poll)
 end
 
 function HardcoverApi:_query(query, parameters)
@@ -661,21 +749,31 @@ function HardcoverApi:removeRead(user_book_id)
   end
 end
 
-function HardcoverApi:createJournalEntry(object)
-  local query = [[
-    mutation InsertReadingJournalEntry($object: ReadingJournalCreateType!) {
-      insert_reading_journal(object: $object) {
-        reading_journal {
-          id
-        }
+local journal_entry_mutation = [[
+  mutation InsertReadingJournalEntry($object: ReadingJournalCreateType!) {
+    insert_reading_journal(object: $object) {
+      reading_journal {
+        id
       }
     }
-  ]]
+  }
+]]
 
-  local result = self:query(query, { object = object })
+function HardcoverApi:createJournalEntry(object)
+  local result = self:query(journal_entry_mutation, { object = object })
   if result then
     return result.insert_reading_journal.reading_journal
   end
+end
+
+function HardcoverApi:createJournalEntryAsync(object, callback)
+  self:queryAsync(journal_entry_mutation, { object = object }, function(result, err)
+    if result and result.insert_reading_journal then
+      callback(result.insert_reading_journal.reading_journal)
+    else
+      callback(nil, err)
+    end
+  end)
 end
 
 return HardcoverApi
