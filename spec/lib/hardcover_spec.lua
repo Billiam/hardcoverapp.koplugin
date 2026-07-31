@@ -231,7 +231,66 @@ describe("Hardcover metadata search", function()
     }, isbn_calls)
     assert.is_true(results[1].aladin_source)
     assert.are.equal("https://www.aladin.co.kr/example", results[1].aladin_link)
+    assert.are.equal("만들어진 신 - 신은 과연 인간을 창조했는가?", results[1].title)
+    assert.are.equal("만들어진 신", results[1].hardcover_title)
     assert.are.equal(1, metadata.aladin_result_count)
     assert.are.equal(1, metadata.aladin_linked_count)
+  end)
+
+  it("retries an automatic Aladin search without the author when no edition resolves", function()
+    local aladin_calls = {}
+    local isbn_calls = {}
+
+    AladinApi.configured = true
+    function AladinApi:search(title, author)
+      table.insert(aladin_calls, { title = title, author = author })
+      if author then
+        return {
+          { title = "Unrelated", isbn_13 = "9780306406157" },
+        }
+      end
+      return {
+        {
+          title = "이기적 유전자 - 2010년 전면개정판",
+          isbn_13 = "9788932471631",
+        },
+      }
+    end
+
+    function Api:findBooksByIsbns(isbns)
+      table.insert(isbn_calls, isbns)
+      if isbns[1] == "9788932471631" then
+        return {
+          {
+            book_id = 428232,
+            edition_id = 32454164,
+            isbn_13 = "9788932471631",
+            title = "The Selfish Gene",
+            contributions = { author = "Richard Dawkins" },
+          },
+        }
+      end
+      return {}
+    end
+
+    local hardcover = Hardcover:new {}
+    local results, err = hardcover:findBooksByMetadata(
+      "이기적 유전자",
+      "리처드 도킨스",
+      7
+    )
+
+    assert.is_nil(err)
+    assert.are.same({
+      { title = "이기적 유전자", author = "리처드 도킨스" },
+      { title = "이기적 유전자", author = nil },
+    }, aladin_calls)
+    assert.are.same({
+      { "9780306406157" },
+      { "9788932471631" },
+    }, isbn_calls)
+    assert.are.equal(1, #results)
+    assert.are.equal("이기적 유전자 - 2010년 전면개정판", results[1].title)
+    assert.are.equal("The Selfish Gene", results[1].hardcover_title)
   end)
 end)

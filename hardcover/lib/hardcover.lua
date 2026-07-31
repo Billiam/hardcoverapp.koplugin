@@ -154,15 +154,7 @@ function Hardcover:linkBook(book)
   return true
 end
 
-function Hardcover:findBooksFromAladin(metadata, user_id)
-  local items, err = AladinApi:search(
-    metadata.normalized_title,
-    metadata.normalized_author
-  )
-  if not items then
-    return nil, err, metadata
-  end
-
+local function aladinIsbnIndex(items)
   local isbns = {}
   local items_by_isbn = {}
   for _, item in ipairs(items) do
@@ -173,24 +165,61 @@ function Hardcover:findBooksFromAladin(metadata, user_id)
       end
     end
   end
+  return isbns, items_by_isbn
+end
 
-  metadata.aladin_result_count = #items
-  local books, hardcover_err = Api:findBooksByIsbns(isbns, user_id)
-  if not books then
-    return nil, hardcover_err, metadata
-  end
-
+local function decorateAladinBooks(books, items_by_isbn)
   for _, book in ipairs(books) do
     local item = items_by_isbn[book.isbn_13] or items_by_isbn[book.isbn_10]
     if item then
       book.aladin_link = item.link
       book.aladin_source = true
       book.aladin_title = item.title
+      book.hardcover_title = book.title
+      book.title = item.title
+    end
+  end
+end
+
+function Hardcover:findBooksFromAladin(metadata, user_id)
+  local attempts = {
+    { author = metadata.normalized_author },
+  }
+  if metadata.normalized_author and metadata.normalized_author ~= "" then
+    table.insert(attempts, {})
+  end
+
+  local last_error
+  local empty_results
+  for _, attempt in ipairs(attempts) do
+    local items, err = AladinApi:search(
+      metadata.normalized_title,
+      attempt.author
+    )
+
+    if items then
+      metadata.aladin_result_count = #items
+      local isbns, items_by_isbn = aladinIsbnIndex(items)
+      local books, hardcover_err = Api:findBooksByIsbns(isbns, user_id)
+      if books then
+        decorateAladinBooks(books, items_by_isbn)
+        metadata.aladin_linked_count = #books
+        if #books > 0 then
+          return books, nil, metadata
+        end
+        empty_results = books
+      else
+        last_error = hardcover_err
+      end
+    else
+      last_error = err
     end
   end
 
-  metadata.aladin_linked_count = #books
-  return books, nil, metadata
+  if empty_results then
+    return empty_results, nil, metadata
+  end
+  return nil, last_error, metadata
 end
 
 -- could be moved to book search model

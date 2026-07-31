@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 (2026-07-31)
+
+### Fixed
+
+* Retry automatic Korean discovery with the normalized title only when the
+  title-and-author query does not resolve a Hardcover edition
+* Display the Korean Aladin edition title instead of a mismatched canonical
+  Hardcover title in Aladin-sourced search results
+
 ## 0.5.0 (2026-07-31)
 
 ### Added
