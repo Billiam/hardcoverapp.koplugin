@@ -139,8 +139,14 @@ function DialogManager:buildBookListDialog(title, items, icon_callback, disable_
   UIManager:show(self.search_dialog)
 end
 
-function DialogManager:updateSearchResults(search)
-  local books, error = Api:findBooks(search, nil, User:getId())
+function DialogManager:updateSearchResults(search, searcher)
+  local books, error
+  if searcher then
+    books, error = searcher(search)
+  else
+    books, error = Api:findBooks(search, nil, User:getId())
+  end
+
   if error then
     if not Api.enabled then
       UIManager:close(self.search_dialog)

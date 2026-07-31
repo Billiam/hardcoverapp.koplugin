@@ -53,6 +53,8 @@ fragment EditionParts on editions {
   }
   cached_image
   edition_format
+  isbn_10
+  isbn_13
   language {
     code2
     language
@@ -361,11 +363,59 @@ function HardcoverApi:findBookByIdentifiers(identifiers, user_id)
   end
 end
 
+function HardcoverApi:findBooksByIsbns(isbns, user_id)
+  if not isbns or #isbns == 0 then
+    return {}
+  end
+
+  local editionSearch = [[
+    query ($isbns: [String!]!, $userId: Int!) {
+      editions(where: {
+        _or: [
+          { isbn_10: { _in: $isbns } },
+          { isbn_13: { _in: $isbns } }
+        ]
+      }) {
+        ...EditionParts
+      }
+    }]] .. edition_fragment
+
+  local data, err = self:query(editionSearch, { isbns = isbns, userId = user_id })
+  if not data then
+    return nil, err
+  end
+
+  local by_isbn = {}
+  for _, edition in ipairs(data.editions or {}) do
+    local book = self:normalizedEdition(edition)
+    if edition.isbn_10 then
+      by_isbn[edition.isbn_10] = book
+    end
+    if edition.isbn_13 then
+      by_isbn[edition.isbn_13] = book
+    end
+  end
+
+  local results = {}
+  local seen = {}
+  for _, isbn in ipairs(isbns) do
+    local book = by_isbn[isbn]
+    if book and not seen[book.edition_id] then
+      seen[book.edition_id] = true
+      table.insert(results, book)
+    end
+  end
+
+  return results
+end
+
 function HardcoverApi:normalizedEdition(edition)
   local result = edition.book
 
   result.edition_id = edition.id
   result.edition_format = Book:editionFormatName(edition.edition_format, edition.reading_format_id)
+  result.isbn_10 = edition.isbn_10
+  result.isbn_13 = edition.isbn_13
 
   result.cached_image = edition.cached_image
   result.publisher = edition.publisher

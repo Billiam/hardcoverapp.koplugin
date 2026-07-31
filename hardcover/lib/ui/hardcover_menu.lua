@@ -12,8 +12,10 @@ local UIManager = require("ui/uimanager")
 
 local UpdateDoubleSpinWidget = require("hardcover/lib/ui/update_double_spin_widget")
 local InfoMessage = require("ui/widget/infomessage")
+local InputDialog = require("ui/widget/inputdialog")
 local SpinWidget = require("ui/widget/spinwidget")
 
+local AladinApi = require("hardcover/lib/aladin_api")
 local Api = require("hardcover/lib/hardcover_api")
 local Github = require("hardcover/lib/github")
 local User = require("hardcover/lib/user")
@@ -177,6 +179,7 @@ function HardcoverMenu:getSubMenuItems(book_view)
         local new_release = Github:newestRelease()
         local version = table.concat(VERSION, ".")
         local new_release_str = ""
+        local aladin_status = AladinApi:isConfigured() and "enabled" or "not configured"
         if new_release then
           new_release_str = " (latest v" .. new_release .. ")"
         end
@@ -189,6 +192,7 @@ v]] .. version .. new_release_str .. [[
 
 
 Updates book progress and status on Hardcover.app
+Korean search: Aladin (]] .. aladin_status .. [[)
 
 Project:
 github.com/billiam/hardcoverapp.koplugin
@@ -600,6 +604,44 @@ end
 
 function HardcoverMenu:getSettingsSubMenuItems()
   return {
+    {
+      text_func = function()
+        return "Aladin TTB key: " .. (AladinApi:isConfigured() and "configured" or "not configured")
+      end,
+      callback = function()
+        local input_dialog
+        input_dialog = InputDialog:new {
+          title = "Aladin TTB key",
+          description = "Used only to discover Korean books on Aladin.",
+          input = AladinApi:getKey() or "",
+          text_type = "password",
+          buttons = {
+            {
+              {
+                text = _("Cancel"),
+                id = "close",
+                callback = function()
+                  UIManager:close(input_dialog)
+                end,
+              },
+              {
+                text = _("Save"),
+                is_enter_default = true,
+                callback = function()
+                  local key = input_dialog:getInputText():match("^%s*(.-)%s*$")
+                  self.settings:updateSetting(SETTING.ALADIN_TTB_KEY, key ~= "" and key or nil)
+                  UIManager:close(input_dialog)
+                end,
+              },
+            },
+          },
+        }
+        UIManager:show(input_dialog)
+        input_dialog:onShowKeyboard()
+      end,
+      keep_menu_open = true,
+      separator = true,
+    },
     {
       text = "Automatically link by ISBN",
       checked_func = function()

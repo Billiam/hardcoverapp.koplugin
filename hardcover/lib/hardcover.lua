@@ -8,6 +8,7 @@ local UIManager = require("ui/uimanager")
 local Notification = require("ui/widget/notification")
 local InfoMessage = require("ui/widget/infomessage")
 
+local AladinApi = require("hardcover/lib/aladin_api")
 local Api = require("hardcover/lib/hardcover_api")
 local Book = require("hardcover/lib/book")
 local BookSearch = require("hardcover/lib/book_search")
@@ -43,7 +44,9 @@ function Hardcover:showLinkBookDialog(force_search, link_callback)
       link_callback(book)
     end,
     function(search)
-      self.dialog_manager:updateSearchResults(search)
+      self.dialog_manager:updateSearchResults(search, function(value)
+        return self:findBooksByMetadata(value, nil, User:getId())
+      end)
       return true
     end,
     search_value
@@ -151,10 +154,53 @@ function Hardcover:linkBook(book)
   return true
 end
 
+function Hardcover:findBooksFromAladin(metadata, user_id)
+  local items, err = AladinApi:search(
+    metadata.normalized_title,
+    metadata.normalized_author
+  )
+  if not items then
+    return nil, err, metadata
+  end
+
+  local isbns = {}
+  local items_by_isbn = {}
+  for _, item in ipairs(items) do
+    for _, isbn in ipairs({ item.isbn_13, item.isbn_10 }) do
+      if isbn and not items_by_isbn[isbn] then
+        items_by_isbn[isbn] = item
+        table.insert(isbns, isbn)
+      end
+    end
+  end
+
+  metadata.aladin_result_count = #items
+  local books, hardcover_err = Api:findBooksByIsbns(isbns, user_id)
+  if not books then
+    return nil, hardcover_err, metadata
+  end
+
+  for _, book in ipairs(books) do
+    local item = items_by_isbn[book.isbn_13] or items_by_isbn[book.isbn_10]
+    if item then
+      book.aladin_link = item.link
+      book.aladin_source = true
+      book.aladin_title = item.title
+    end
+  end
+
+  metadata.aladin_linked_count = #books
+  return books, nil, metadata
+end
+
 -- could be moved to book search model
 function Hardcover:findBooksByMetadata(title, author, user_id)
   local metadata = BookSearch:metadata(title, author)
   local results, err
+
+  if metadata.is_korean and AladinApi:isConfigured() then
+    return self:findBooksFromAladin(metadata, user_id)
+  end
 
   if metadata.is_korean then
     results, err = Api:search(metadata.original_title, metadata.original_author, user_id)

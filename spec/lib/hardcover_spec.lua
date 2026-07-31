@@ -1,10 +1,15 @@
 describe("Hardcover metadata search", function()
+  local AladinApi
   local Api
   local Hardcover
   local saved_modules = {}
   local stub_modules
 
   setup(function()
+    AladinApi = {
+      configured = false,
+      isConfigured = function(self) return self.configured end,
+    }
     Api = {}
     stub_modules = {
       ["gettext"] = function(value) return value end,
@@ -13,6 +18,7 @@ describe("Hardcover metadata search", function()
       ["ui/uimanager"] = {},
       ["ui/widget/notification"] = { new = function(_, value) return value end },
       ["ui/widget/infomessage"] = { new = function(_, value) return value end },
+      ["hardcover/lib/aladin_api"] = AladinApi,
       ["hardcover/lib/hardcover_api"] = Api,
       ["hardcover/lib/user"] = { getId = function() return 1 end },
     }
@@ -25,6 +31,10 @@ describe("Hardcover metadata search", function()
     saved_modules["hardcover/lib/hardcover"] = package.loaded["hardcover/lib/hardcover"]
     package.loaded["hardcover/lib/hardcover"] = nil
     Hardcover = require("hardcover/lib/hardcover")
+  end)
+
+  before_each(function()
+    AladinApi.configured = false
   end)
 
   teardown(function()
@@ -169,5 +179,59 @@ describe("Hardcover metadata search", function()
     assert.is_nil(err)
     assert.is_false(metadata.is_korean)
     assert.are.same({ expected }, results)
+  end)
+
+  it("uses Aladin only for Korean discovery when a TTB key is configured", function()
+    local aladin_calls = {}
+    local isbn_calls = {}
+    local expected = {
+      book_id = 382874,
+      edition_id = 33126542,
+      isbn_13 = "9788934972631",
+      title = "만들어진 신",
+      contributions = { author = "Richard Dawkins" },
+    }
+
+    AladinApi.configured = true
+    function AladinApi:search(title, author)
+      table.insert(aladin_calls, { title = title, author = author })
+      return {
+        {
+          title = "만들어진 신 - 신은 과연 인간을 창조했는가?",
+          isbn_10 = nil,
+          isbn_13 = "9788934972631",
+          link = "https://www.aladin.co.kr/example",
+        },
+      }
+    end
+
+    function Api:findBooksByIsbns(isbns, user_id)
+      table.insert(isbn_calls, { isbns = isbns, user_id = user_id })
+      return { expected }
+    end
+
+    function Api:search()
+      error("Korean discovery should not search Hardcover when Aladin is configured")
+    end
+
+    local hardcover = Hardcover:new {}
+    local results, err, metadata = hardcover:findBooksByMetadata(
+      "만들어진 신: 신은 과연 인간을 창조했는가?",
+      "리처드 도킨스 지음, 이한음 옮김",
+      7
+    )
+
+    assert.is_nil(err)
+    assert.are.same({ expected }, results)
+    assert.are.same({
+      { title = "만들어진 신", author = "리처드 도킨스" },
+    }, aladin_calls)
+    assert.are.same({
+      { isbns = { "9788934972631" }, user_id = 7 },
+    }, isbn_calls)
+    assert.is_true(results[1].aladin_source)
+    assert.are.equal("https://www.aladin.co.kr/example", results[1].aladin_link)
+    assert.are.equal(1, metadata.aladin_result_count)
+    assert.are.equal(1, metadata.aladin_linked_count)
   end)
 end)

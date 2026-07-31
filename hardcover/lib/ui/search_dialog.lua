@@ -54,6 +54,9 @@ function HardcoverSearchDialog:createListItem(book, active_item)
   elseif book.users_read_count then
     info = book.users_read_count .. " reads"
   end
+  if book.aladin_source then
+    info = info ~= "" and ("Aladin · " .. info) or "Aladin"
+  end
 
   local active = active_item and (
     (book.edition_id and book.edition_id == active_item.edition_id) or
@@ -115,7 +118,7 @@ function HardcoverSearchDialog:createListItem(book, active_item)
     result.filetype = book.filetype
   end
 
-  if book.cached_image.url then
+  if _t.dig(book, "cached_image", "url") then
     result.cover_url = book.cached_image.url
     result.cover_w = book.cached_image.width
     result.cover_h = book.cached_image.height

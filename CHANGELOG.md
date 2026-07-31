@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 (2026-07-31)
+
+### Added
+
+* Use Aladin for Korean title and author discovery when `aladin_ttb_key` is configured
+* Search Aladin ebooks before print books and resolve results to exact Hardcover ISBNs
+* Configure the Aladin TTB key from the Hardcover settings menu
+* Show Aladin search status in the plugin About dialog
+
+### Changed
+
+* Preserve the existing Hardcover search path for non-Korean metadata and for users
+  without an Aladin TTB key
+
 ## 0.4.0 (2026-04-26)
 
 ### Added

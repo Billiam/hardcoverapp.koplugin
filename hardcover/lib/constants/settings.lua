@@ -1,4 +1,5 @@
 local Settings = {
+  ALADIN_TTB_KEY = "aladin_ttb_key",
   ALWAYS_SYNC = "always_sync",
   BOOKS = "books",
   COMPATIBILITY_MODE = "compatibility_mode",
