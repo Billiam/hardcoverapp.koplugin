@@ -2,14 +2,64 @@
 
 A KOReader plugin to update your [Hardcover.app](https://hardcover.app) reading status
 
+## Korean metadata matching
+
+Version 0.5.0 can use Aladin as the discovery source for Korean EPUB metadata while
+keeping Hardcover as the service that stores reading status and progress. Non-Korean
+searches continue to use Hardcover directly.
+
+* ISBN-10 and ISBN-13 values are normalized by removing spaces and hyphens and
+  are accepted only when their checksums are valid.
+* Korean titles and authors are conservatively normalized before searching Aladin.
+* Korean author roles such as `지음`, `저`, `글`, `옮김`, and `번역` are removed
+  from the normalized author query.
+* Aladin ebooks are searched before print books.
+* Aladin results are resolved to Hardcover editions by exact, checksum-valid ISBN.
+* Results are still scored by title and author similarity instead of automatically
+  linking the first result.
+
+When `aladin_ttb_key` is configured, the Korean lookup order is:
+
+1. Valid ISBN
+2. Normalized Korean title and author on Aladin
+3. Exact ISBN resolution of Aladin results on Hardcover
+
+For example, metadata such as `소년이 온다: 한강 장편소설 / 한강 지음` is
+normalized to `소년이 온다 / 한강` before it is sent to Aladin.
+
+If no Aladin TTB key is configured, the plugin retains the previous Korean Hardcover
+search fallback: original metadata, normalized title and author, then normalized
+title only.
+
+### Catalog limitations
+
+Aladin is used for discovery, but the plugin still links only editions that already
+exist in Hardcover. It does not automatically create public Hardcover catalog
+records. An Aladin result without a matching Hardcover ISBN is therefore not shown
+as a linkable result. This avoids creating duplicate works or attaching a translation
+to the wrong original work.
+
+Hardcover groups translations as editions of a shared work. The selected edition can
+therefore be Korean while the main work page still displays the canonical title or
+cover in another language.
+
+Book metadata used by the Korean discovery path is provided by
+[Aladin Internet Bookstore](https://www.aladin.co.kr). Personal users need their own
+[Aladin OpenAPI TTB key](https://blog.aladin.co.kr/openapi/5353304). Aladin currently
+limits the basic API to 5,000 requests per day.
+
 ## Installation
 
-1. Download and extract the latest release: https://github.com/Billiam/hardcoverapp.koplugin/releases/latest
+1. Download and extract a package from the [Releases page](../../releases)
 2. Rename `hardcover_config.example.lua` to `hardcover_config.lua`
 3. Fetch your API key from https://hardcover.app/account/api (just the part after `Bearer `)
 4. Add your API key to the `token` field in `hardcover_config.lua`, between the `''` quotes. For example:
    `token = 'abcde...fghij'`
-5. Install plugin by copying the `hardcoverapp.koplugin` folder to the KOReader plugins folder on your device
+5. To enable Korean Aladin search, open `Hardcover > Settings > Aladin TTB key`
+   in KOReader and enter your personal key. You can alternatively add it to the
+   `aladin_ttb_key` field in `hardcover_config.lua`.
+   Keep both keys private and never commit `hardcover_config.lua`.
+6. Install plugin by copying the `hardcoverapp.koplugin` folder to the KOReader plugins folder on your device
 
 ## Usage
 
@@ -120,8 +170,8 @@ when a new document is opened, if no book has been linked already. These options
   the book)
   or a `hardcover-edition` with an edition ID, try to find the matching book or edition.
   (see: [RobBrazier/calibre-plugins](https://github.com/RobBrazier/calibre-plugins/tree/main/plugins/hardcover))
-* **Automatically link by title**: If the document metadata contains a title, choose the first book returned from
-  hardcover search results for that title and document author (if available).
+* **Automatically link by title**: If the document metadata contains a title, search by title and document author
+  (if available), then link only when the result has a sufficiently similar title and author.
 
 ### Track progress settings
 

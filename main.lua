@@ -29,6 +29,7 @@ local User = require("hardcover/lib/user")
 local DialogManager = require("hardcover/lib/ui/dialog_manager")
 local HardcoverMenu = require("hardcover/lib/ui/hardcover_menu")
 
+local AladinApi = require("hardcover/lib/aladin_api")
 local HARDCOVER = require("hardcover/lib/constants/hardcover")
 local SETTING = require("hardcover/lib/constants/settings")
 
@@ -95,6 +96,7 @@ function HardcoverApp:init()
   )
   self.settings:subscribe(function(field, change, original_value) self:onSettingsChanged(field, change, original_value) end)
 
+  AladinApi.settings = self.settings
   User.settings = self.settings
   Api.on_error = function(err)
     if not err or not self.enabled then

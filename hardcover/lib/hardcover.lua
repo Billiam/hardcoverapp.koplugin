@@ -8,8 +8,10 @@ local UIManager = require("ui/uimanager")
 local Notification = require("ui/widget/notification")
 local InfoMessage = require("ui/widget/infomessage")
 
+local AladinApi = require("hardcover/lib/aladin_api")
 local Api = require("hardcover/lib/hardcover_api")
 local Book = require("hardcover/lib/book")
+local BookSearch = require("hardcover/lib/book_search")
 local User = require("hardcover/lib/user")
 
 local SETTING = require("hardcover/lib/constants/settings")
@@ -42,7 +44,9 @@ function Hardcover:showLinkBookDialog(force_search, link_callback)
       link_callback(book)
     end,
     function(search)
-      self.dialog_manager:updateSearchResults(search)
+      self.dialog_manager:updateSearchResults(search, function(value)
+        return self:findBooksByMetadata(value, nil, User:getId())
+      end)
       return true
     end,
     search_value
@@ -150,14 +154,178 @@ function Hardcover:linkBook(book)
   return true
 end
 
+local function aladinIsbnIndex(items)
+  local isbns = {}
+  local items_by_isbn = {}
+  for _, item in ipairs(items) do
+    for _, isbn in ipairs({ item.isbn_13, item.isbn_10 }) do
+      if isbn and not items_by_isbn[isbn] then
+        items_by_isbn[isbn] = item
+        table.insert(isbns, isbn)
+      end
+    end
+  end
+  return isbns, items_by_isbn
+end
+
+local function decorateAladinBooks(books, items_by_isbn)
+  for _, book in ipairs(books) do
+    local item = items_by_isbn[book.isbn_13] or items_by_isbn[book.isbn_10]
+    if item then
+      book.aladin_link = item.link
+      book.aladin_source = true
+      book.aladin_title = item.title
+      book.hardcover_title = book.title
+      book.title = item.title
+    end
+  end
+end
+
+function Hardcover:findBooksFromAladin(metadata, user_id)
+  local attempts = {
+    { author = metadata.normalized_author },
+  }
+  if metadata.normalized_author and metadata.normalized_author ~= "" then
+    table.insert(attempts, {})
+  end
+
+  local last_error
+  local empty_results
+  for _, attempt in ipairs(attempts) do
+    local items, err = AladinApi:search(
+      metadata.normalized_title,
+      attempt.author
+    )
+
+    if items then
+      metadata.aladin_result_count = #items
+      local isbns, items_by_isbn = aladinIsbnIndex(items)
+      local books, hardcover_err = Api:findBooksByIsbns(isbns, user_id)
+      if books then
+        decorateAladinBooks(books, items_by_isbn)
+        metadata.aladin_linked_count = #books
+        if #books > 0 then
+          return books, nil, metadata
+        end
+        empty_results = books
+      else
+        last_error = hardcover_err
+      end
+    else
+      last_error = err
+    end
+  end
+
+  if empty_results then
+    return empty_results, nil, metadata
+  end
+  return nil, last_error, metadata
+end
+
 -- could be moved to book search model
+function Hardcover:findBooksByMetadata(title, author, user_id)
+  local metadata = BookSearch:metadata(title, author)
+  local results, err
+
+  if metadata.is_korean and AladinApi:isConfigured() then
+    return self:findBooksFromAladin(metadata, user_id)
+  end
+
+  if metadata.is_korean then
+    results, err = Api:search(metadata.original_title, metadata.original_author, user_id)
+  else
+    -- Keep the existing search behavior unchanged for non-Korean metadata.
+    results, err = Api:findBooks(metadata.original_title, metadata.original_author, user_id)
+  end
+
+  if err and (not metadata.is_korean or not metadata.normalized_changed) then
+    return nil, err, metadata
+  end
+
+  results = results or {}
+  if not metadata.is_korean then
+    return results, nil, metadata
+  end
+
+  local original_match = BookSearch:findBestMatch(metadata, results)
+  if not err and original_match then
+    return results, nil, metadata
+  end
+
+  local normalized_results
+  if metadata.normalized_changed then
+    local normalized_err
+    normalized_results, normalized_err = Api:search(
+      metadata.normalized_title,
+      metadata.normalized_author,
+      user_id
+    )
+
+    if normalized_err then
+      if #results > 0 then
+        return results, nil, metadata
+      end
+      return nil, err or normalized_err, metadata
+    end
+
+    if normalized_results and #normalized_results > 0
+      and BookSearch:findBestMatch(metadata, normalized_results)
+    then
+      return normalized_results, nil, metadata
+    end
+  end
+
+  -- Hardcover often romanizes Korean authors in its search index. If both
+  -- title/author queries miss, retry the normalized Korean title alone and
+  -- still require the usual similarity check before automatic linking.
+  local title_results, title_err = Api:search(
+    metadata.normalized_title,
+    nil,
+    user_id
+  )
+
+  if title_results and #title_results > 0 then
+    return title_results, nil, metadata
+  end
+
+  if title_err then
+    if normalized_results and #normalized_results > 0 then
+      return normalized_results, nil, metadata
+    elseif #results > 0 then
+      return results, nil, metadata
+    end
+    return nil, err or title_err, metadata
+  end
+
+  if normalized_results and #normalized_results > 0 then
+    return normalized_results, nil, metadata
+  end
+
+  if err then
+    return nil, err, metadata
+  end
+
+  return results, nil, metadata
+end
+
 function Hardcover:findBookOptions(force_search)
   local props = self.ui.document:getProps()
   local identifiers = Book:parseIdentifiers(props.identifiers)
   local user_id = User:getId()
 
   if not force_search then
-    local book_lookup = Api:findBookByIdentifiers(identifiers, user_id)
+    local book_lookup = Api:findBookByIdentifiers({
+      isbn_10 = identifiers.isbn_10,
+      isbn_13 = identifiers.isbn_13,
+    }, user_id)
+    if book_lookup then
+      return nil, { book_lookup }
+    end
+
+    book_lookup = Api:findBookByIdentifiers({
+      book_slug = identifiers.book_slug,
+      edition_id = identifiers.edition_id,
+    }, user_id)
     if book_lookup then
       return nil, { book_lookup }
     end
@@ -170,7 +338,7 @@ function Hardcover:findBookOptions(force_search)
 
     title = filename:gsub("_", " ")
   end
-  local result, err = Api:findBooks(title, props.authors, user_id)
+  local result, err = self:findBooksByMetadata(title, props.authors, user_id)
   return title, result, err
 end
 
@@ -218,9 +386,10 @@ end
 function Hardcover:linkBookByTitle()
   local props = self.ui.document:getProps()
 
-  local results = Api:findBooks(props.title, props.authors, User:getId())
-  if results and #results > 0 then
-    self:autolinkBook(results[1])
+  local results, _, metadata = self:findBooksByMetadata(props.title, props.authors, User:getId())
+  local match = BookSearch:findBestMatch(metadata, results)
+  if match then
+    self:autolinkBook(match)
     return true
   end
 end
