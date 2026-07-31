@@ -2,9 +2,49 @@
 
 A KOReader plugin to update your [Hardcover.app](https://hardcover.app) reading status
 
+## Korean metadata matching
+
+This version improves search and automatic linking for Korean EPUB metadata while
+keeping the existing non-Korean search path unchanged.
+
+* ISBN-10 and ISBN-13 values are normalized by removing spaces and hyphens and
+  are accepted only when their checksums are valid.
+* Korean titles are searched with both their original metadata and a conservative
+  normalized form that removes common subtitles, edition labels, and volume markers.
+* Korean author roles such as `지음`, `저`, `글`, `옮김`, and `번역` are removed
+  from the normalized author query.
+* Search results are scored by title and author similarity instead of automatically
+  linking the first result.
+* If Hardcover indexes a Korean author using a romanized name, such as `Han Kang`
+  instead of `한강`, the plugin can retry the normalized Korean title without the
+  author and still applies the same similarity check before linking.
+
+The lookup order is:
+
+1. Valid ISBN
+2. Original title and author
+3. Normalized Korean title and author
+4. Normalized Korean title only, when the author-indexed searches do not find a safe match
+
+For example, metadata such as `소년이 온다: 한강 장편소설 / 한강 지음` is
+normalized to `소년이 온다 / 한강`, and
+`작별하지 않는다 (장편소설) / 한강 저` can fall back to a title-only search
+when Hardcover stores the author as `Han Kang`.
+
+### Catalog limitations
+
+The plugin searches and links records that already exist in Hardcover. It does not
+query Aladin or create missing Hardcover books or editions. Duplicate Hardcover work
+records may also remain ambiguous when an EPUB has no ISBN, so a valid ISBN remains
+the highest-confidence way to select an exact Korean edition.
+
+Hardcover groups translations as editions of a shared work. The selected edition can
+therefore be Korean while the main work page still displays the canonical title or
+cover in another language.
+
 ## Installation
 
-1. Download and extract the latest release: https://github.com/Billiam/hardcoverapp.koplugin/releases/latest
+1. Download and extract a package from the [Releases page](../../releases)
 2. Rename `hardcover_config.example.lua` to `hardcover_config.lua`
 3. Fetch your API key from https://hardcover.app/account/api (just the part after `Bearer `)
 4. Add your API key to the `token` field in `hardcover_config.lua`, between the `''` quotes. For example:
@@ -120,8 +160,8 @@ when a new document is opened, if no book has been linked already. These options
   the book)
   or a `hardcover-edition` with an edition ID, try to find the matching book or edition.
   (see: [RobBrazier/calibre-plugins](https://github.com/RobBrazier/calibre-plugins/tree/main/plugins/hardcover))
-* **Automatically link by title**: If the document metadata contains a title, choose the first book returned from
-  hardcover search results for that title and document author (if available).
+* **Automatically link by title**: If the document metadata contains a title, search by title and document author
+  (if available), then link only when the result has a sufficiently similar title and author.
 
 ### Track progress settings
 

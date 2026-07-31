@@ -10,6 +10,7 @@ local InfoMessage = require("ui/widget/infomessage")
 
 local Api = require("hardcover/lib/hardcover_api")
 local Book = require("hardcover/lib/book")
+local BookSearch = require("hardcover/lib/book_search")
 local User = require("hardcover/lib/user")
 
 local SETTING = require("hardcover/lib/constants/settings")
@@ -151,13 +152,105 @@ function Hardcover:linkBook(book)
 end
 
 -- could be moved to book search model
+function Hardcover:findBooksByMetadata(title, author, user_id)
+  local metadata = BookSearch:metadata(title, author)
+  local results, err
+
+  if metadata.is_korean then
+    results, err = Api:search(metadata.original_title, metadata.original_author, user_id)
+  else
+    -- Keep the existing search behavior unchanged for non-Korean metadata.
+    results, err = Api:findBooks(metadata.original_title, metadata.original_author, user_id)
+  end
+
+  if err and (not metadata.is_korean or not metadata.normalized_changed) then
+    return nil, err, metadata
+  end
+
+  results = results or {}
+  if not metadata.is_korean then
+    return results, nil, metadata
+  end
+
+  local original_match = BookSearch:findBestMatch(metadata, results)
+  if not err and original_match then
+    return results, nil, metadata
+  end
+
+  local normalized_results
+  if metadata.normalized_changed then
+    local normalized_err
+    normalized_results, normalized_err = Api:search(
+      metadata.normalized_title,
+      metadata.normalized_author,
+      user_id
+    )
+
+    if normalized_err then
+      if #results > 0 then
+        return results, nil, metadata
+      end
+      return nil, err or normalized_err, metadata
+    end
+
+    if normalized_results and #normalized_results > 0
+      and BookSearch:findBestMatch(metadata, normalized_results)
+    then
+      return normalized_results, nil, metadata
+    end
+  end
+
+  -- Hardcover often romanizes Korean authors in its search index. If both
+  -- title/author queries miss, retry the normalized Korean title alone and
+  -- still require the usual similarity check before automatic linking.
+  local title_results, title_err = Api:search(
+    metadata.normalized_title,
+    nil,
+    user_id
+  )
+
+  if title_results and #title_results > 0 then
+    return title_results, nil, metadata
+  end
+
+  if title_err then
+    if normalized_results and #normalized_results > 0 then
+      return normalized_results, nil, metadata
+    elseif #results > 0 then
+      return results, nil, metadata
+    end
+    return nil, err or title_err, metadata
+  end
+
+  if normalized_results and #normalized_results > 0 then
+    return normalized_results, nil, metadata
+  end
+
+  if err then
+    return nil, err, metadata
+  end
+
+  return results, nil, metadata
+end
+
 function Hardcover:findBookOptions(force_search)
   local props = self.ui.document:getProps()
   local identifiers = Book:parseIdentifiers(props.identifiers)
   local user_id = User:getId()
 
   if not force_search then
-    local book_lookup = Api:findBookByIdentifiers(identifiers, user_id)
+    local book_lookup = Api:findBookByIdentifiers({
+      isbn_10 = identifiers.isbn_10,
+      isbn_13 = identifiers.isbn_13,
+    }, user_id)
+    if book_lookup then
+      return nil, { book_lookup }
+    end
+
+    book_lookup = Api:findBookByIdentifiers({
+      book_slug = identifiers.book_slug,
+      edition_id = identifiers.edition_id,
+    }, user_id)
     if book_lookup then
       return nil, { book_lookup }
     end
@@ -170,7 +263,7 @@ function Hardcover:findBookOptions(force_search)
 
     title = filename:gsub("_", " ")
   end
-  local result, err = Api:findBooks(title, props.authors, user_id)
+  local result, err = self:findBooksByMetadata(title, props.authors, user_id)
   return title, result, err
 end
 
@@ -218,9 +311,10 @@ end
 function Hardcover:linkBookByTitle()
   local props = self.ui.document:getProps()
 
-  local results = Api:findBooks(props.title, props.authors, User:getId())
-  if results and #results > 0 then
-    self:autolinkBook(results[1])
+  local results, _, metadata = self:findBooksByMetadata(props.title, props.authors, User:getId())
+  local match = BookSearch:findBestMatch(metadata, results)
+  if match then
+    self:autolinkBook(match)
     return true
   end
 end
