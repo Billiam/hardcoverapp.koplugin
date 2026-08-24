@@ -4,6 +4,7 @@ local Device = require("device")
 local logger = require("logger")
 
 local NetworkMgr = require("ui/network/manager")
+local UIManager = require("ui/uimanager")
 
 local AutoWifi = {
   connection_pending = false
@@ -35,14 +36,15 @@ function AutoWifi:withWifi(callback)
       G_reader_settings:saveSetting("wifi_was_on", original_on)
 
       self.connection_pending = false
-      --logger.warn("HARDCOVER wifi enabled")
 
-      callback(true)
+      -- Wait for DHCP/network setup to fully settle before making the Hardcover request.
+      UIManager:scheduleIn(5, function()
+        callback(true)
 
-      -- TODO: schedule turn off wifi, debounce
-      self:wifiDisableSilent()
+        -- TODO: schedule turn off wifi, debounce
+        self:wifiDisableSilent()
+      end)
     end)
-  end
 end
 
 function AutoWifi:wifiDisableSilent()
