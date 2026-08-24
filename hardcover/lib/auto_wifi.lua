@@ -45,6 +45,7 @@ function AutoWifi:withWifi(callback)
         self:wifiDisableSilent()
       end)
     end)
+  end
 end
 
 function AutoWifi:wifiDisableSilent()
@@ -69,7 +70,9 @@ function AutoWifi:wifiPrompt(callback)
     return
   end
 
-  local network_callback = callback and function() callback(true) end or nil
+  local network_callback = callback and function()
+    callback(true)
+  end or nil
 
   if self.settings:readSetting(SETTING.ENABLE_WIFI) then
     NetworkMgr:turnOnWifiAndWaitForConnection(network_callback)
