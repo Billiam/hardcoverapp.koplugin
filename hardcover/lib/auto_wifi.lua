@@ -1,7 +1,6 @@
 local SETTING = require("hardcover/lib/constants/settings")
 
 local Device = require("device")
-local logger = require("logger")
 
 local NetworkMgr = require("ui/network/manager")
 local socket = require("socket")
