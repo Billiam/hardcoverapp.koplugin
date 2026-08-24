@@ -4,7 +4,29 @@ local Device = require("device")
 local logger = require("logger")
 
 local NetworkMgr = require("ui/network/manager")
+local socket = require("socket")
 local UIManager = require("ui/uimanager")
+
+local api_host = "api.hardcover.app"
+local dns_attempts = 6
+
+local function waitForDNS(host, attempts, callback)
+  local ip = socket.dns.toip(host)
+
+  if ip then
+    callback(true)
+    return
+  end
+
+  if attempts <= 0 then
+    callback(false)
+    return
+  end
+
+  UIManager:scheduleIn(5, function()
+    waitForDNS(host, attempts - 1, callback)
+  end)
+end
 
 local AutoWifi = {
   connection_pending = false
@@ -37,9 +59,11 @@ function AutoWifi:withWifi(callback)
 
       self.connection_pending = false
 
-      -- Wait for DHCP/network setup to fully settle before making the Hardcover request.
-      UIManager:scheduleIn(5, function()
-        callback(true)
+      -- Wait for Hardcover's DNS to become available before making API requests.
+      waitForDNS(api_host, dns_attempts, function(ready)
+        if ready then
+          callback(true)
+        end
 
         -- TODO: schedule turn off wifi, debounce
         self:wifiDisableSilent()
