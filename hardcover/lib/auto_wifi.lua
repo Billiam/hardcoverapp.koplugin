@@ -22,7 +22,7 @@ local function waitForDNS(host, attempts, callback)
     return
   end
 
-  UIManager:scheduleIn(5, function()
+  UIManager:scheduleIn(1, function()
     waitForDNS(host, attempts - 1, callback)
   end)
 end
