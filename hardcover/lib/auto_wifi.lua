@@ -1,9 +1,31 @@
 local SETTING = require("hardcover/lib/constants/settings")
 
 local Device = require("device")
-local logger = require("logger")
 
 local NetworkMgr = require("ui/network/manager")
+local socket = require("socket")
+local UIManager = require("ui/uimanager")
+
+local api_host = "api.hardcover.app"
+local dns_attempts = 6
+
+local function waitForDNS(host, attempts, callback)
+  local ip = socket.dns.toip(host)
+
+  if ip then
+    callback(true)
+    return
+  end
+
+  if attempts <= 0 then
+    callback(false)
+    return
+  end
+
+  UIManager:scheduleIn(1, function()
+    waitForDNS(host, attempts - 1, callback)
+  end)
+end
 
 local AutoWifi = {
   connection_pending = false
@@ -35,12 +57,16 @@ function AutoWifi:withWifi(callback)
       G_reader_settings:saveSetting("wifi_was_on", original_on)
 
       self.connection_pending = false
-      --logger.warn("HARDCOVER wifi enabled")
 
-      callback(true)
+      -- Wait for Hardcover's DNS to become available before making API requests.
+      waitForDNS(api_host, dns_attempts, function(ready)
+        if ready then
+          callback(true)
+        end
 
-      -- TODO: schedule turn off wifi, debounce
-      self:wifiDisableSilent()
+        -- TODO: schedule turn off wifi, debounce
+        self:wifiDisableSilent()
+      end)
     end)
   end
 end
@@ -67,7 +93,9 @@ function AutoWifi:wifiPrompt(callback)
     return
   end
 
-  local network_callback = callback and function() callback(true) end or nil
+  local network_callback = callback and function()
+    callback(true)
+  end or nil
 
   if self.settings:readSetting(SETTING.ENABLE_WIFI) then
     NetworkMgr:turnOnWifiAndWaitForConnection(network_callback)
