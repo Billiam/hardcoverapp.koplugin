@@ -14,7 +14,7 @@ local VERSION = require("hardcover_version")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
 
-local user_agent =
+UserAgent =
 	T("hardcoverapp.koplugin/%1 (https://github.com/billiam/hardcoverapp.koplugin)", table.concat(VERSION, "."))
 
 local HardcoverApi = {
@@ -25,7 +25,7 @@ function HardcoverApi:_headers()
   local token = self.settings and self.settings:readSetting(SETTING.ACCESS_TOKEN)
   return {
     ["Content-Type"] = "application/json",
-    ["User-Agent"] = user_agent,
+    ["User-Agent"] = UserAgent,
     Authorization = token and ("Bearer " .. token) or nil,
   }
 end
