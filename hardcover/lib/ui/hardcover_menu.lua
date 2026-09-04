@@ -41,9 +41,6 @@ local privacy_labels = {
 
 function HardcoverMenu:mainMenu()
   return {
-    enabled_func = function()
-      return self.enabled
-    end,
     text_func = function()
       return self.settings:bookLinked() and _("Hardcover: " .. ICON.LINK) or _("Hardcover")
     end,
@@ -159,6 +156,9 @@ function HardcoverMenu:getSubMenuItems(book_view)
     },
     {
       text = _("Suggest a book"),
+      enabled_func = function()
+        return self.enabled
+      end,
       callback = function()
         self.hardcover:showRandomBookDialog()
       end,
@@ -166,7 +166,30 @@ function HardcoverMenu:getSubMenuItems(book_view)
       keep_menu_open = true
     },
     {
+      text_func = function()
+        return self.settings:signedIn()
+          and _("Sign out of Hardcover") or _("Sign in to Hardcover")
+      end,
+      keep_menu_open = true,
+      callback = function(menu_instance)
+        local refresh = function()
+          local has_book = self.ui.document and true or false
+          menu_instance.item_table = self:getSubMenuItems(has_book)
+          menu_instance:updateItems(1)
+        end
+        -- todo
+        if self.settings:signedIn() then
+          self.dialog_manager:signOut(refresh)
+        else
+          self.dialog_manager:signIn(refresh)
+        end
+      end,
+    },
+    {
       text = _("Settings"),
+      enabled_func = function()
+        return self.enabled
+      end,
       sub_item_table_func = function()
         return self:getSettingsSubMenuItems()
       end,
