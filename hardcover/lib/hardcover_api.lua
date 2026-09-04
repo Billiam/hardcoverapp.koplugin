@@ -14,16 +14,20 @@ local VERSION = require("hardcover_version")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
 
-local headers = {
-  ["Content-Type"] = "application/json",
-  ["User-Agent"] = T("hardcoverapp.koplugin/%1 (https://github.com/billiam/hardcoverapp.koplugin)",
-    table.concat(VERSION, ".")),
-  Authorization = "Bearer " .. config.token
-}
+local user_agent =
+	T("hardcoverapp.koplugin/%1 (https://github.com/billiam/hardcoverapp.koplugin)", table.concat(VERSION, "."))
 
 local HardcoverApi = {
   enabled = true
 }
+
+function HardcoverApi:_headers()
+  return {
+    ["Content-Type"] = "application/json",
+    ["User-Agent"] = user_agent,
+    Authorization = config.token and ("Bearer " .. config.token) or nil,
+  }
+end
 
 local book_fragment = [[
 fragment BookParts on books {
@@ -147,7 +151,7 @@ function HardcoverApi:_query(query, parameters)
   local request = {
     url = api_url,
     method = "POST",
-    headers = headers,
+    headers = self:_headers(),
     source = ltn12.source.string(json.encode(requestBody)),
     sink = socketutil.table_sink(sink),
   }
