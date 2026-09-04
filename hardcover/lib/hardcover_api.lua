@@ -1,4 +1,3 @@
-local config = require("hardcover_config")
 local logger = require("logger")
 local http = require("socket.http")
 local ltn12 = require("ltn12")
@@ -10,6 +9,7 @@ local NetworkManager = require("ui/network/manager")
 local socketutil = require("socketutil")
 
 local Book = require("hardcover/lib/book")
+local SETTING = require("hardcover/lib/constants/settings")
 local VERSION = require("hardcover_version")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
@@ -22,10 +22,11 @@ local HardcoverApi = {
 }
 
 function HardcoverApi:_headers()
+  local token = self.settings and self.settings:readSetting(SETTING.ACCESS_TOKEN)
   return {
     ["Content-Type"] = "application/json",
     ["User-Agent"] = user_agent,
-    Authorization = config.token and ("Bearer " .. config.token) or nil,
+    Authorization = token and ("Bearer " .. token) or nil,
   }
 end
 

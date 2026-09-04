@@ -95,7 +95,12 @@ function HardcoverApp:init()
   )
   self.settings:subscribe(function(field, change, original_value) self:onSettingsChanged(field, change, original_value) end)
 
+  local signed_in = self.settings:signedIn()
+  self.enabled = signed_in
+
   User.settings = self.settings
+  Api.settings = self.settings
+  Api.enabled = signed_in
   Api.on_error = function(err)
     if not err or not self.enabled then
       return
@@ -138,7 +143,7 @@ function HardcoverApp:init()
   }
 
   self.menu = HardcoverMenu:new {
-    enabled = true,
+    enabled = signed_in,
 
     cache = self.cache,
     dialog_manager = self.dialog_manager,
@@ -181,8 +186,18 @@ end
 
 function HardcoverApp:disable()
   self.enabled = false
+  Api.enabled = false
   if self.menu then
     self.menu.enabled = false
+  end
+  self:registerHighlight()
+end
+
+function HardcoverApp:enable()
+  self.enabled = true
+  Api.enabled = true
+  if self.menu then
+    self.menu.enabled = true
   end
   self:registerHighlight()
 end
@@ -265,6 +280,12 @@ function HardcoverApp:onSettingsChanged(field, change, original_value)
   elseif field == SETTING.LINK_BY_HARDCOVER or field == SETTING.LINK_BY_ISBN or field == SETTING.LINK_BY_TITLE then
     if change then
       self.hardcover:tryAutolink()
+    end
+  elseif field == SETTING.ACCESS_TOKEN then
+    if change then
+      self:enable()
+    else
+      self:disable()
     end
   end
 end
@@ -630,6 +651,10 @@ function HardcoverApp:startReadCache()
 end
 
 function HardcoverApp:registerHighlight()
+  if not self.ui.highlight then
+    return
+  end
+
   self.ui.highlight:removeFromHighlightDialog(HIGHLIGHT_MENU_NAME)
 
   if self.enabled and self.settings:bookLinked() then

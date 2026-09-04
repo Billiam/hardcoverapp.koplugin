@@ -202,4 +202,8 @@ function HardcoverSettings:menuConfirm()
   return self.settings:readSetting(SETTING.MENU_CONFIRMATION) == true
 end
 
+function HardcoverSettings:signedIn()
+  return self.settings:readSetting(SETTING.ACCESS_TOKEN) ~= nil
+end
+
 return HardcoverSettings
