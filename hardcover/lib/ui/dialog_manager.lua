@@ -1,17 +1,23 @@
 local _ = require("gettext")
 local json = require("json")
+local os = require("os")
 
+local Trapper = require("ui/trapper")
 local UIManager = require("ui/uimanager")
 
 local ConfirmBox = require("ui/widget/confirmbox")
 local InfoMessage = require("ui/widget/infomessage")
 local FileSearcher = require("apps/filemanager/filemanagerfilesearcher")
 
+local DeviceAuthDialog = require("hardcover/lib/ui/device_auth_dialog")
+local OAuthClient = require("hardcover/lib/oauth_client")
+
 local Api = require("hardcover/lib/hardcover_api")
 local Book = require("hardcover/lib/book")
 local User = require("hardcover/lib/user")
 
 local HARDCOVER = require("hardcover/lib/constants/hardcover")
+local SETTING = require("hardcover/lib/constants/settings")
 
 local JournalDialog = require("hardcover/lib/ui/journal_dialog")
 local SearchDialog = require("hardcover/lib/ui/search_dialog")
@@ -249,6 +255,55 @@ function DialogManager:showError(err)
     icon = "notice-warning",
     timeout = 2
   })
+end
+
+function DialogManager:signIn(on_done)
+  DeviceAuthDialog:new{}:show(
+    function(tokens)
+      self.settings:updateSetting(SETTING.ACCESS_TOKEN, tokens.access_token)
+      self.settings:updateSetting(SETTING.REFRESH_TOKEN, tokens.refresh_token)
+      self.settings:updateSetting(SETTING.TOKEN_EXPIRES_AT,
+        os.time() + (tonumber(tokens.expires_in) or 0))
+
+      User:_set_me(Api:me())
+
+      UIManager:show(InfoMessage:new{ text = _("Signed in to Hardcover"), timeout = 2 })
+      if on_done then on_done(true) end
+    end,
+
+    function(message)
+      UIManager:show(InfoMessage:new{ text = message, icon = "notice-warning", timeout = 3 })
+      if on_done then on_done(false) end
+    end
+  )
+end
+
+function DialogManager:signOut(on_done)
+  local refresh_token = self.settings:readSetting(SETTING.REFRESH_TOKEN)
+  local access_token = self.settings:readSetting(SETTING.ACCESS_TOKEN)
+  local token, hint
+  if refresh_token then
+    token, hint = refresh_token, "refresh_token"
+  else
+    token, hint = access_token, "access_token"
+  end
+
+  Trapper:wrap(function()
+    if token then
+      -- revoking server-side shouldn't block
+      Trapper:dismissableRunInSubprocess(function()
+        return OAuthClient:_revoke(token, hint)
+      end, false, true)
+    end
+
+    self.settings:updateSetting(SETTING.ACCESS_TOKEN, nil)
+    self.settings:updateSetting(SETTING.REFRESH_TOKEN, nil)
+    self.settings:updateSetting(SETTING.TOKEN_EXPIRES_AT, nil)
+    User:_set_me(nil)
+
+    UIManager:show(InfoMessage:new{ text = _("Signed out of Hardcover"), timeout = 2 })
+    if on_done then on_done(false) end
+  end)
 end
 
 return DialogManager

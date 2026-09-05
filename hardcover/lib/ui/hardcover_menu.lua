@@ -194,7 +194,6 @@ function HardcoverMenu:getSubMenuItems(book_view)
           menu_instance.item_table = self:getSubMenuItems(has_book)
           menu_instance:updateItems(1)
         end
-        -- todo
         if self.settings:signedIn() then
           self.dialog_manager:signOut(refresh)
         else
