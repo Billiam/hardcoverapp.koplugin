@@ -165,6 +165,23 @@ function HardcoverMenu:getSubMenuItems(book_view)
       separator = true,
       keep_menu_open = true
     },
+    self.settings:signedIn() and {
+      text_func = function()
+        return User:getName() or ""
+      end,
+      enabled_func = function()
+        return false
+      end,
+    },
+    self.settings:signedIn() and {
+      text_func = function()
+        local username = User:getUsername()
+        return username and ("@" .. username) or ""
+      end,
+      enabled_func = function()
+        return false
+      end,
+    },
     {
       text_func = function()
         return self.settings:signedIn()

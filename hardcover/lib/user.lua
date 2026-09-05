@@ -14,4 +14,12 @@ function User:getId()
   return user_id
 end
 
+function User:getName()
+  return self.settings:readSetting(SETTING.NAME)
+end
+
+function User:getUsername()
+  return self.settings:readSetting(SETTING.USERNAME)
+end
+
 return User

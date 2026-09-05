@@ -93,6 +93,8 @@ function HardcoverApi:me()
   local result = self:query([[{
     me {
       id
+      name
+      username
       account_privacy_setting_id
     }
   }]])

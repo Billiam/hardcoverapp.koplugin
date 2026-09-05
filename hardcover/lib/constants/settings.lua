@@ -16,6 +16,8 @@ local Settings = {
     PROGRESS = "progress",
   },
   USER_ID = "user_id",
+  NAME = "name",
+  USERNAME = "username",
 
   ACCESS_TOKEN = "access_token",
   REFRESH_TOKEN = "refresh_token",
