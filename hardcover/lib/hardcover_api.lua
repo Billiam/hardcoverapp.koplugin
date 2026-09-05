@@ -1,29 +1,37 @@
-local config = require("hardcover_config")
-local logger = require("logger")
-local http = require("socket.http")
-local ltn12 = require("ltn12")
+local _ = require("gettext")
 local json = require("json")
-local _t = require("hardcover/lib/table_util")
-local T = require("ffi/util").template
-local Trapper = require("ui/trapper")
-local NetworkManager = require("ui/network/manager")
+local logger = require("logger")
+local ltn12 = require("ltn12")
+local os = require("os")
 local socketutil = require("socketutil")
+local http = require("socket.http")
+
+local NetworkManager = require("ui/network/manager")
+local Trapper = require("ui/trapper")
+local UIManager = require("ui/uimanager")
+local InfoMessage = require("ui/widget/infomessage")
+
+local _t = require("hardcover/lib/table_util")
 
 local Book = require("hardcover/lib/book")
-local VERSION = require("hardcover_version")
+local SETTING = require("hardcover/lib/constants/settings")
+local OAuthClient = require("hardcover/lib/oauth_client")
+local user_agent = require("hardcover/lib/user_agent")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
-
-local headers = {
-  ["Content-Type"] = "application/json",
-  ["User-Agent"] = T("hardcoverapp.koplugin/%1 (https://github.com/billiam/hardcoverapp.koplugin)",
-    table.concat(VERSION, ".")),
-  Authorization = "Bearer " .. config.token
-}
 
 local HardcoverApi = {
   enabled = true
 }
+
+function HardcoverApi:_headers()
+  local token = self.settings and self.settings:readSetting(SETTING.ACCESS_TOKEN)
+  return {
+    ["Content-Type"] = "application/json",
+    ["User-Agent"] = user_agent,
+    Authorization = token and ("Bearer " .. token) or nil,
+  }
+end
 
 local book_fragment = [[
 fragment BookParts on books {
@@ -88,6 +96,8 @@ function HardcoverApi:me()
   local result = self:query([[{
     me {
       id
+      name
+      username
       account_privacy_setting_id
     }
   }]])
@@ -98,21 +108,105 @@ function HardcoverApi:me()
   return {}
 end
 
+local function isAuthError(code, data)
+  return code == "401" or (data and (data.error == "invalid_token" or data.error == "invalid_grant"))
+end
+
+function HardcoverApi:refreshToken()
+  if not self.settings then
+    return false, "no_settings"
+  end
+
+  local refresh_token = self.settings:readSetting(SETTING.REFRESH_TOKEN)
+  if not refresh_token then
+    return false, "no_refresh_token"
+  end
+
+  local tokens, err, data = OAuthClient:refresh(refresh_token)
+  if tokens and tokens.access_token then
+    self.settings:updateSetting(SETTING.ACCESS_TOKEN, tokens.access_token)
+    if tokens.refresh_token then
+      self.settings:updateSetting(SETTING.REFRESH_TOKEN, tokens.refresh_token)
+    end
+    self.settings:updateSetting(SETTING.TOKEN_EXPIRES_AT, os.time() + (tonumber(tokens.expires_in) or 0))
+    return true
+  elseif err == "rejected" then
+    logger.warn("Hardcover refresh token rejected, forgetting signed in info")
+    self:handleAuthExpired()
+    return false, "rejected"
+  else
+    logger.warn("Hardcover token refresh failed:", err)
+    return false, err
+  end
+end
+
+function HardcoverApi:handleAuthExpired()
+  local had_token = self.settings and (self.settings:readSetting(SETTING.ACCESS_TOKEN) or self.settings:readSetting(SETTING.REFRESH_TOKEN))
+  if self.settings then
+    self.settings:clearAuth()
+  end
+  self.enabled = false
+
+  if had_token then
+    if self.on_auth_expired then
+      self.on_auth_expired()
+    else
+      UIManager:show(InfoMessage:new {
+        text = _("Your Hardcover sign-in has expired. Please sign in again from the Hardcover menu"),
+        icon = "notice-warning",
+      })
+    end
+  end
+end
+
 function HardcoverApi:query(query, parameters)
   if not NetworkManager:isConnected() or not self.enabled then
     return
   end
 
-  local completed, success, content
+  if self.settings and self.settings:readSetting(SETTING.REFRESH_TOKEN) then
+    if self.settings:isTokenExpired() then
+      local ok, reason = self:refreshToken()
+      if not ok and reason == "rejected" then
+        return nil, { error = "auth_expired" }
+      end
+    end
+  end
 
-  completed, content = Trapper:dismissableRunInSubprocess(function()
+  local completed, content = Trapper:dismissableRunInSubprocess(function()
     return self:_query(query, parameters)
   end, true, true)
 
   if completed and content then
     local code, response = string.match(content, "^([^:]*):(.*)")
     if string.find(code, "^%d%d%d") then
-      local data = json.decode(response, json.decode.simple)
+      local ok, data = pcall(json.decode, response, json.decode.simple)
+      data = (ok and type(data) == "table") and data or {}
+
+      if isAuthError(code, data) then
+        if self.settings and self.settings:readSetting(SETTING.REFRESH_TOKEN) then
+          local refreshed, reason = self:refreshToken()
+          if refreshed then
+            completed, content = Trapper:dismissableRunInSubprocess(function()
+              return self:_query(query, parameters)
+            end, true, true)
+
+            if completed and content then
+              code, response = string.match(content, "^([^:]*):(.*)")
+              if string.find(code, "^%d%d%d") then
+                ok, data = pcall(json.decode, response, json.decode.simple)
+                data = (ok and type(data) == "table") and data or {}
+              end
+            end
+          elseif reason == "rejected" then
+            return nil, { error = "auth_expired" }
+          end
+        else
+          self:handleAuthExpired()
+          return nil, { error = "auth_expired" }
+        end
+      end
+
       if data.data then
         return data.data
       elseif data.errors or data.error then
@@ -147,7 +241,7 @@ function HardcoverApi:_query(query, parameters)
   local request = {
     url = api_url,
     method = "POST",
-    headers = headers,
+    headers = self:_headers(),
     source = ltn12.source.string(json.encode(requestBody)),
     sink = socketutil.table_sink(sink),
   }

@@ -95,18 +95,25 @@ function HardcoverApp:init()
   )
   self.settings:subscribe(function(field, change, original_value) self:onSettingsChanged(field, change, original_value) end)
 
+  local signed_in = self.settings:signedIn()
+  self.enabled = signed_in
+
   User.settings = self.settings
+  Api.settings = self.settings
+  Api.enabled = signed_in
+  Api.on_auth_expired = function()
+    UIManager:show(InfoMessage:new {
+      text = _("Your Hardcover sign-in has expired. Please sign in again from the Hardcover menu"),
+      icon = "notice-warning",
+    })
+  end
   Api.on_error = function(err)
     if not err or not self.enabled then
       return
     end
 
-    if err == HARDCOVER.ERROR.TOKEN or _t.dig(err, "extensions", "code") == HARDCOVER.ERROR.JWT or (err.message and string.find(err.message, "JWT")) then
-      self:disable()
-      UIManager:show(InfoMessage:new {
-        text = "Your Hardcover API key is not valid or has expired. Please update it and restart",
-        icon = "notice-warning",
-      })
+    if err == "invalid_token" or (type(err) == "table" and (err.error == "invalid_token" or err.message == "invalid_token")) then
+      Api:handleAuthExpired()
     end
   end
 
@@ -138,7 +145,7 @@ function HardcoverApp:init()
   }
 
   self.menu = HardcoverMenu:new {
-    enabled = true,
+    enabled = signed_in,
 
     cache = self.cache,
     dialog_manager = self.dialog_manager,
@@ -181,8 +188,18 @@ end
 
 function HardcoverApp:disable()
   self.enabled = false
+  Api.enabled = false
   if self.menu then
     self.menu.enabled = false
+  end
+  self:registerHighlight()
+end
+
+function HardcoverApp:enable()
+  self.enabled = true
+  Api.enabled = true
+  if self.menu then
+    self.menu.enabled = true
   end
   self:registerHighlight()
 end
@@ -265,6 +282,12 @@ function HardcoverApp:onSettingsChanged(field, change, original_value)
   elseif field == SETTING.LINK_BY_HARDCOVER or field == SETTING.LINK_BY_ISBN or field == SETTING.LINK_BY_TITLE then
     if change then
       self.hardcover:tryAutolink()
+    end
+  elseif field == SETTING.ACCESS_TOKEN then
+    if change then
+      self:enable()
+    else
+      self:disable()
     end
   end
 end
@@ -630,6 +653,10 @@ function HardcoverApp:startReadCache()
 end
 
 function HardcoverApp:registerHighlight()
+  if not self.ui.highlight then
+    return
+  end
+
   self.ui.highlight:removeFromHighlightDialog(HIGHLIGHT_MENU_NAME)
 
   if self.enabled and self.settings:bookLinked() then

@@ -41,9 +41,6 @@ local privacy_labels = {
 
 function HardcoverMenu:mainMenu()
   return {
-    enabled_func = function()
-      return self.enabled
-    end,
     text_func = function()
       return self.settings:bookLinked() and _("Hardcover: " .. ICON.LINK) or _("Hardcover")
     end,
@@ -55,8 +52,10 @@ function HardcoverMenu:mainMenu()
 end
 
 function HardcoverMenu:getSubMenuItems(book_view)
-  local menu_items = {
-    book_view and {
+  local menu_items = {}
+
+  if book_view then
+    table.insert(menu_items, {
       text_func = function()
         if self.settings:bookLinked() then
           -- need to show link information somehow. Maybe store title
@@ -97,8 +96,9 @@ function HardcoverMenu:getSubMenuItems(book_view)
           menu_instance:updateItems()
         end)
       end,
-    },
-    book_view and {
+    })
+
+    table.insert(menu_items, {
       text_func = function()
         local edition_format = self.settings:getLinkedEditionFormat()
         local title = "Change edition"
@@ -131,8 +131,9 @@ function HardcoverMenu:getSubMenuItems(book_view)
       end,
       keep_menu_open = true,
       separator = true
-    },
-    book_view and {
+    })
+
+    table.insert(menu_items, {
       text = _("Automatically track progress"),
       checked_func = function()
         return self.settings:syncEnabled()
@@ -144,8 +145,9 @@ function HardcoverMenu:getSubMenuItems(book_view)
         local sync = not self.settings:syncEnabled()
         self.settings:setSync(sync)
       end,
-    },
-    book_view and {
+    })
+
+    table.insert(menu_items, {
       text = _("Update status"),
       enabled_func = function()
         return self.settings:bookLinked()
@@ -156,34 +158,87 @@ function HardcoverMenu:getSubMenuItems(book_view)
         return self:getStatusSubMenuItems()
       end,
       separator = true
-    },
-    {
-      text = _("Suggest a book"),
-      callback = function()
-        self.hardcover:showRandomBookDialog()
-      end,
-      separator = true,
-      keep_menu_open = true
-    },
-    {
-      text = _("Settings"),
-      sub_item_table_func = function()
-        return self:getSettingsSubMenuItems()
-      end,
-    },
-    {
-      text = _("About"),
-      callback = function()
-        local new_release = Github:newestRelease()
-        local version = table.concat(VERSION, ".")
-        local new_release_str = ""
-        if new_release then
-          new_release_str = " (latest v" .. new_release .. ")"
-        end
-        local settings_file = DataStorage:getSettingsDir() .. "/" .. "hardcoversync_settings.lua"
+    })
+  end
 
-        UIManager:show(InfoMessage:new {
-          text = [[
+  table.insert(menu_items, {
+    text = _("Suggest a book"),
+    enabled_func = function()
+      return self.enabled
+    end,
+    callback = function()
+      self.hardcover:showRandomBookDialog()
+    end,
+    separator = true,
+    keep_menu_open = true
+  })
+
+  if self.settings:signedIn() then
+    local name = User:getName()
+    if name and name ~= "" then
+      table.insert(menu_items, {
+        text_func = function()
+          return name
+        end,
+        enabled_func = function()
+          return false
+        end,
+      })
+    end
+
+    local username = User:getUsername()
+    if username and username ~= "" then
+      table.insert(menu_items, {
+        text_func = function()
+          return "@" .. username
+        end,
+        enabled_func = function()
+          return false
+        end,
+      })
+    end
+  end
+
+  table.insert(menu_items, {
+    text_func = function()
+      return self.settings:signedIn()
+        and _("Sign out of Hardcover") or _("Sign in to Hardcover")
+    end,
+    keep_menu_open = true,
+    callback = function(menu_instance)
+      local refresh = function()
+        local has_book = self.ui.document and true or false
+        menu_instance.item_table = self:getSubMenuItems(has_book)
+        menu_instance:updateItems(1)
+      end
+      if self.settings:signedIn() then
+        self.dialog_manager:signOut(refresh)
+      else
+        self.dialog_manager:signIn(refresh)
+      end
+    end,
+  })
+
+  table.insert(menu_items, {
+    text = _("Settings"),
+    sub_item_table_func = function()
+      return self:getSettingsSubMenuItems()
+    end,
+  })
+
+  table.insert(menu_items, {
+    text = _("About"),
+    callback = function()
+      local new_release = Github:newestRelease()
+      local version = table.concat(VERSION, ".")
+      local new_release_str = ""
+      if new_release then
+        new_release_str = " (latest v" .. new_release .. ")"
+      end
+      local settings_file = DataStorage:getSettingsDir() .. "/" .. "hardcoversync_settings.lua"
+
+      UIManager:show(InfoMessage:new {
+        text = [[
 Hardcover plugin
 v]] .. version .. new_release_str .. [[
 
@@ -195,16 +250,14 @@ github.com/billiam/hardcoverapp.koplugin
 
 Settings:
 ]] .. settings_file,
-          face = Font:getFace("cfont", 18),
-          show_icon = false,
-        })
-      end,
-      keep_menu_open = true
-    }
-  }
-  return _t.filter(menu_items, function(v)
-    return v
-  end)
+        face = Font:getFace("cfont", 18),
+        show_icon = false,
+      })
+    end,
+    keep_menu_open = true
+  })
+
+  return menu_items
 end
 
 function HardcoverMenu:getVisibilitySubMenuItems()

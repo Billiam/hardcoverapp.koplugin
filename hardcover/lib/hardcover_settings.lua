@@ -1,5 +1,6 @@
 local KoreaderVersion = require("version")
 local LuaSettings = require("luasettings")
+local os = require("os")
 
 local _t = require("hardcover/lib/table_util")
 local SETTING = require("hardcover/lib/constants/settings")
@@ -200,6 +201,28 @@ end
 
 function HardcoverSettings:menuConfirm()
   return self.settings:readSetting(SETTING.MENU_CONFIRMATION) == true
+end
+
+function HardcoverSettings:signedIn()
+  return self.settings:readSetting(SETTING.ACCESS_TOKEN) ~= nil
+end
+
+function HardcoverSettings:isTokenExpired(leeway)
+  leeway = leeway or 60
+  local expires_at = self.settings:readSetting(SETTING.TOKEN_EXPIRES_AT)
+  if not expires_at then
+    return false
+  end
+  return os.time() >= (tonumber(expires_at) - leeway)
+end
+
+function HardcoverSettings:clearAuth()
+  self:updateSetting(SETTING.ACCESS_TOKEN, nil)
+  self:updateSetting(SETTING.REFRESH_TOKEN, nil)
+  self:updateSetting(SETTING.TOKEN_EXPIRES_AT, nil)
+  self:updateSetting(SETTING.USER_ID, nil)
+  self:updateSetting(SETTING.NAME, nil)
+  self:updateSetting(SETTING.USERNAME, nil)
 end
 
 return HardcoverSettings

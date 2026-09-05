@@ -16,6 +16,12 @@ local Settings = {
     PROGRESS = "progress",
   },
   USER_ID = "user_id",
+  NAME = "name",
+  USERNAME = "username",
+
+  ACCESS_TOKEN = "access_token",
+  REFRESH_TOKEN = "refresh_token",
+  TOKEN_EXPIRES_AT = "token_expires_at",
 }
 
 Settings.AUTOLINK_OPTIONS = { Settings.LINK_BY_HARDCOVER, Settings.LINK_BY_ISBN, Settings.LINK_BY_TITLE }

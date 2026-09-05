@@ -5,11 +5,8 @@ A KOReader plugin to update your [Hardcover.app](https://hardcover.app) reading 
 ## Installation
 
 1. Download and extract the latest release: https://github.com/Billiam/hardcoverapp.koplugin/releases/latest
-2. Rename `hardcover_config.example.lua` to `hardcover_config.lua`
-3. Fetch your API key from https://hardcover.app/account/api (just the part after `Bearer `)
-4. Add your API key to the `token` field in `hardcover_config.lua`, between the `''` quotes. For example:
-   `token = 'abcde...fghij'`
-5. Install plugin by copying the `hardcoverapp.koplugin` folder to the KOReader plugins folder on your device
+2. Install plugin by copying the `hardcoverapp.koplugin` folder to the KOReader plugins folder on your device
+3. Open up the Hardcover item in the Bookmark menu (the bookmark icon in reader view, cabinet in book list), click sign in, and follow the instructions
 
 ## Usage
 
