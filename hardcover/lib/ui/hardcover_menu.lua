@@ -203,9 +203,6 @@ function HardcoverMenu:getSubMenuItems(book_view)
     },
     {
       text = _("Settings"),
-      enabled_func = function()
-        return self.enabled
-      end,
       sub_item_table_func = function()
         return self:getSettingsSubMenuItems()
       end,
