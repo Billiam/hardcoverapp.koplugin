@@ -45,7 +45,13 @@ function DeviceAuthDialog:_run()
     return
   end
 
-  local device_auth = json.decode(body, json.decode.simple)
+  local ok, device_auth = pcall(json.decode, body, json.decode.simple)
+  if not ok or type(device_auth) ~= "table" or not device_auth.device_code then
+    if self.on_error then
+      self.on_error(_("Could not start sign-in"))
+    end
+    return
+  end
   self.interval = tonumber(device_auth.interval) or 5
   local expires_at = os.time() + (tonumber(device_auth.expires_in) or 600)
   self.cancelled = false
@@ -65,7 +71,8 @@ function DeviceAuthDialog:_run()
     end
 
     local poll_code, poll_body = poll_raw:match("^([^:]*):(.*)")
-    local data = (poll_code and poll_body and poll_body ~= "") and json.decode(poll_body, json.decode.simple) or {}
+    local poll_ok, data = pcall(json.decode, poll_body, json.decode.simple)
+    data = (poll_ok and type(data) == "table") and data or {}
 
     if poll_code and poll_code:match("^2%d%d") and data.access_token then
       self:_close()

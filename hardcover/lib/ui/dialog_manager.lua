@@ -258,24 +258,26 @@ function DialogManager:showError(err)
 end
 
 function DialogManager:signIn(on_done)
-  DeviceAuthDialog:new{}:show(
-    function(tokens)
-      self.settings:updateSetting(SETTING.ACCESS_TOKEN, tokens.access_token)
-      self.settings:updateSetting(SETTING.REFRESH_TOKEN, tokens.refresh_token)
-      self.settings:updateSetting(SETTING.TOKEN_EXPIRES_AT,
-        os.time() + (tonumber(tokens.expires_in) or 0))
+  self.wifi:wifiPrompt(function()
+    DeviceAuthDialog:new{}:show(
+      function(tokens)
+        self.settings:updateSetting(SETTING.ACCESS_TOKEN, tokens.access_token)
+        self.settings:updateSetting(SETTING.REFRESH_TOKEN, tokens.refresh_token)
+        self.settings:updateSetting(SETTING.TOKEN_EXPIRES_AT,
+          os.time() + (tonumber(tokens.expires_in) or 0))
 
-      User:_set_me(Api:me())
+        User:_set_me(Api:me())
 
-      UIManager:show(InfoMessage:new{ text = _("Signed in to Hardcover"), timeout = 2 })
-      if on_done then on_done(true) end
-    end,
+        UIManager:show(InfoMessage:new{ text = _("Signed in to Hardcover"), timeout = 2 })
+        if on_done then on_done(true) end
+      end,
 
-    function(message)
-      UIManager:show(InfoMessage:new{ text = message, icon = "notice-warning", timeout = 3 })
-      if on_done then on_done(false) end
-    end
-  )
+      function(message)
+        UIManager:show(InfoMessage:new{ text = message, icon = "notice-warning", timeout = 3 })
+        if on_done then on_done(false) end
+      end
+    )
+  end)
 end
 
 function DialogManager:signOut(on_done)
