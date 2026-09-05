@@ -13,10 +13,6 @@ local Hardcover = {
   CATEGORY = {
     TAG = "Tag",
   },
-  ERROR = {
-    JWT = "invalid-jwt",
-    TOKEN = "Unable to verify token",
-  }
 }
 
 return Hardcover

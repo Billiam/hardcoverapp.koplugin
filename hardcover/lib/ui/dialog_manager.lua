@@ -296,10 +296,7 @@ function DialogManager:signOut(on_done)
       end, false, true)
     end
 
-    self.settings:updateSetting(SETTING.ACCESS_TOKEN, nil)
-    self.settings:updateSetting(SETTING.REFRESH_TOKEN, nil)
-    self.settings:updateSetting(SETTING.TOKEN_EXPIRES_AT, nil)
-    User:_set_me(nil)
+    self.settings:clearAuth()
 
     UIManager:show(InfoMessage:new{ text = _("Signed out of Hardcover"), timeout = 2 })
     if on_done then on_done(false) end

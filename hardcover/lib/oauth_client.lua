@@ -4,6 +4,8 @@ local ltn12 = require("ltn12")
 local url = require("socket.url")
 local socketutil = require("socketutil")
 
+local json = require("json")
+local Trapper = require("ui/trapper")
 
 local user_agent = require("hardcover/lib/user_agent")
 local OAUTH = require("hardcover/lib/constants/oauth")
@@ -57,6 +59,32 @@ function OAuthClient:_refresh(refresh_token)
     refresh_token = refresh_token,
     client_id = OAUTH.CLIENT_ID,
   })
+end
+
+function OAuthClient:refresh(refresh_token)
+  local completed, raw = Trapper:dismissableRunInSubprocess(function()
+    return self:_refresh(refresh_token)
+  end, false, true)
+
+  if not completed or not raw then
+    return nil, "network_error"
+  end
+
+  local code, body = raw:match("^([^:]*):(.*)")
+  if not (code and code:match("^%d%d%d")) then
+    return nil, "network_error"
+  end
+
+  local ok, data = pcall(json.decode, body, json.decode.simple)
+  data = (ok and type(data) == "table") and data or {}
+
+  if code:match("^2%d%d") and data.access_token then
+    return data
+  elseif code == "400" or code == "401" or data.error == "invalid_grant" or data.error == "invalid_token" or data.error == "expired_token" then
+    return nil, "rejected", data
+  else
+    return nil, "error", data
+  end
 end
 
 function OAuthClient:_revoke(token, token_type_hint)

@@ -101,17 +101,19 @@ function HardcoverApp:init()
   User.settings = self.settings
   Api.settings = self.settings
   Api.enabled = signed_in
+  Api.on_auth_expired = function()
+    UIManager:show(InfoMessage:new {
+      text = _("Your Hardcover sign-in has expired. Please sign in again from the Hardcover menu"),
+      icon = "notice-warning",
+    })
+  end
   Api.on_error = function(err)
     if not err or not self.enabled then
       return
     end
 
-    if err == HARDCOVER.ERROR.TOKEN or _t.dig(err, "extensions", "code") == HARDCOVER.ERROR.JWT or (err.message and string.find(err.message, "JWT")) then
-      self:disable()
-      UIManager:show(InfoMessage:new {
-        text = "Your Hardcover sign-in is no longer valid. Please sign in again from the Hardcover settings menu",
-        icon = "notice-warning",
-      })
+    if err == "invalid_token" or (type(err) == "table" and (err.error == "invalid_token" or err.message == "invalid_token")) then
+      Api:handleAuthExpired()
     end
   end
 
