@@ -4,8 +4,8 @@ local ltn12 = require("ltn12")
 local url = require("socket.url")
 local socketutil = require("socketutil")
 
-local user_agent = require("hardcover/lib/hardcover_api").UserAgent
 
+local user_agent = require("hardcover/lib/user_agent")
 local OAUTH = require("hardcover/lib/constants/oauth")
 
 local OAuthClient = {}

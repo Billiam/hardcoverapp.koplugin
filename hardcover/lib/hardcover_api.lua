@@ -3,19 +3,15 @@ local http = require("socket.http")
 local ltn12 = require("ltn12")
 local json = require("json")
 local _t = require("hardcover/lib/table_util")
-local T = require("ffi/util").template
 local Trapper = require("ui/trapper")
 local NetworkManager = require("ui/network/manager")
 local socketutil = require("socketutil")
 
 local Book = require("hardcover/lib/book")
 local SETTING = require("hardcover/lib/constants/settings")
-local VERSION = require("hardcover_version")
+local user_agent = require("hardcover/lib/user_agent")
 
 local api_url = "https://api.hardcover.app/v1/graphql"
-
-UserAgent =
-	T("hardcoverapp.koplugin/%1 (https://github.com/billiam/hardcoverapp.koplugin)", table.concat(VERSION, "."))
 
 local HardcoverApi = {
   enabled = true
@@ -25,7 +21,7 @@ function HardcoverApi:_headers()
   local token = self.settings and self.settings:readSetting(SETTING.ACCESS_TOKEN)
   return {
     ["Content-Type"] = "application/json",
-    ["User-Agent"] = UserAgent,
+    ["User-Agent"] = user_agent,
     Authorization = token and ("Bearer " .. token) or nil,
   }
 end
