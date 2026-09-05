@@ -6,7 +6,7 @@ A KOReader plugin to update your [Hardcover.app](https://hardcover.app) reading 
 
 1. Download and extract the latest release: https://github.com/Billiam/hardcoverapp.koplugin/releases/latest
 2. Install plugin by copying the `hardcoverapp.koplugin` folder to the KOReader plugins folder on your device
-3. Open up the Hardcover item in the Bookmark menu (the bookmark icon in reader view), click sign in, and follow the instructions
+3. Open up the Hardcover item in the Bookmark menu (the bookmark icon in reader view, cabinet in book list), click sign in, and follow the instructions
 
 ## Usage
 
