@@ -1,4 +1,5 @@
 local Button = require("ui/widget/button")
+local DateTimeWidget = require("ui/widget/datetimewidget")
 local Device = require("device")
 local Font = require("ui/font")
 local FrameContainer = require("ui/widget/container/framecontainer")
@@ -13,7 +14,9 @@ local ToggleSwitch = require("ui/widget/toggleswitch")
 local TextBoxWidget = require("ui/widget/textboxwidget")
 local UIManager = require("ui/uimanager")
 local _ = require("gettext")
+local datetime = require("datetime")
 local logger = require("logger")
+local T = require("ffi/util").template
 
 local JOURNAL_NOTE = "note"
 local JOURNAL_QUOTE = "quote"
@@ -27,6 +30,7 @@ local JournalDialog = InputDialog:extend {
   event_type = JOURNAL_NOTE,
   pages = _("???"),
   page = nil,
+  action_at = nil,
   edition_id = nil,
   edition_type = nil,
   tags = {},
@@ -48,6 +52,7 @@ local function comma_split(text)
 end
 
 function JournalDialog:init()
+  self.action_at = self.action_at or os.time()
   self:setModified()
 
   local text_widget = TextBoxWidget:new {
@@ -64,6 +69,7 @@ function JournalDialog:init()
       text = self.note_input:getText(),
       page = self.page,
       pages = self.pages,
+      action_at = self.action_at,
       event_type = self.event_type,
       privacy_setting_id = self.privacy_setting_id,
       tags = comma_split(self.tag_field.text),
@@ -186,11 +192,59 @@ function JournalDialog:init()
     }
   }
 
+  self.datetime_button = Button:new {
+    text_func = function()
+      return T(_("date: %1"), datetime.secondsToDateTime(self.action_at))
+    end,
+    width = self.width - 30,
+    text_font_size = 16,
+    bordersize = Size.border.thin,
+    callback = function()
+      self:showDateTimePicker()
+    end
+  }
+
+  local datetime_row = FrameContainer:new {
+    padding_top = 0,
+    padding_bottom = 8,
+    bordersize = 0,
+    self.datetime_button
+  }
+
   self:addWidget(journal_type)
   self:addWidget(edition_row)
+  self:addWidget(datetime_row)
   self:addWidget(privacy_row)
   self:addWidget(self.tag_field)
   self:addWidget(self.hidden_tag_field)
+end
+
+function JournalDialog:showDateTimePicker()
+  local date_parts = os.date("*t", self.action_at)
+
+  self:onCloseKeyboard()
+  UIManager:show(DateTimeWidget:new {
+    year = date_parts.year,
+    year_min = 1902, -- widget defaults to 2021, which would block older entries
+    month = date_parts.month,
+    day = date_parts.day,
+    hour = date_parts.hour,
+    min = date_parts.min,
+    sec = date_parts.sec,
+    ok_text = _("Set date and time"),
+    title_text = _("Set journal date and time"),
+    callback = function(time)
+      self.action_at = os.time({
+        year = time.year,
+        month = time.month,
+        day = time.day,
+        hour = time.hour,
+        min = time.min,
+        sec = time.sec,
+      })
+      self.datetime_button:setText(self.datetime_button.text_func(), self.datetime_button.width)
+    end
+  })
 end
 
 function JournalDialog:onConfigChoose(values, name, event, args, position)
