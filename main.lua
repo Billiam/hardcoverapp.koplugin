@@ -167,6 +167,7 @@ end
 --   page_number: The local page number
 --   remote_page (optional): The mapped page in the linked book edition
 --   note_type: one of "quote" or "note"
+--   datetime (optional): Timestamp to send to hardcover, formatted as "YYYY-MM-DD HH:MM:SS"
 function HardcoverApp:onHardcoverNote(note_params)
   -- open journal dialog
   self.dialog_manager:journalEntryForm(
@@ -175,7 +176,8 @@ function HardcoverApp:onHardcoverNote(note_params)
     note_params.page_number,
     self.settings:pages(),
     note_params.remote_page,
-    note_params.note_type or "quote"
+    note_params.note_type or "quote",
+    note_params.datetime
   )
 end
 
@@ -648,7 +650,9 @@ function HardcoverApp:registerHighlight()
           self:onHardcoverNote({
             text = selected_text.text,
             page_number = raw_page,
-            note_type = "quote"
+            note_type = "quote",
+            -- new selections have no timestamp until they are saved as a highlight
+            datetime = selected_text.datetime or os.date("%Y-%m-%d %H:%M:%S")
           })
 
           this:onClose()

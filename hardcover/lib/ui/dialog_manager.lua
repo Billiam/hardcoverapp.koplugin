@@ -1,4 +1,5 @@
 local _ = require("gettext")
+local datetime = require("datetime")
 local json = require("json")
 
 local UIManager = require("ui/uimanager")
@@ -29,6 +30,7 @@ local function mapJournalData(data)
     event = data.event_type,
     entry = data.text,
     edition_id = data.edition_id,
+    action_at = data.action_at and os.date("!%Y-%m-%dT%TZ", data.action_at),
     privacy_setting_id = data.privacy_setting_id,
     tags = json.util.InitArray({})
   }
@@ -157,7 +159,7 @@ function DialogManager:updateRandomBooks(books)
   self.search_dialog:setItems(self.search_dialog.title, books)
 end
 
-function DialogManager:journalEntryForm(text, document, page, remote_pages, mapped_page, event_type)
+function DialogManager:journalEntryForm(text, document, page, remote_pages, mapped_page, event_type, action_datetime)
   local settings = self.settings:readBookSettings(document.file) or {}
   local edition_id = settings.edition_id
   local edition_format = settings.edition_format
@@ -182,6 +184,7 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
     edition_format = edition_format,
     page = mapped_page,
     pages = remote_pages,
+    action_at = action_datetime and datetime.stringToSeconds(action_datetime),
     save_dialog_callback = function(book_data)
       local api_data = mapJournalData(book_data)
       local result = Api:createJournalEntry(api_data)
