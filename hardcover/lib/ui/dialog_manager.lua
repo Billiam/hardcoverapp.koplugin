@@ -159,7 +159,7 @@ function DialogManager:updateRandomBooks(books)
   self.search_dialog:setItems(self.search_dialog.title, books)
 end
 
-function DialogManager:journalEntryForm(text, document, page, remote_pages, mapped_page, event_type, action_datetime)
+function DialogManager:journalEntryForm(text, document, page, remote_pages, mapped_page, event_type, entry_datetime)
   local settings = self.settings:readBookSettings(document.file) or {}
   local edition_id = settings.edition_id
   local edition_format = settings.edition_format
@@ -184,7 +184,7 @@ function DialogManager:journalEntryForm(text, document, page, remote_pages, mapp
     edition_format = edition_format,
     page = mapped_page,
     pages = remote_pages,
-    action_at = action_datetime and datetime.stringToSeconds(action_datetime),
+    action_at = entry_datetime and datetime.stringToSeconds(entry_datetime),
     save_dialog_callback = function(book_data)
       local api_data = mapJournalData(book_data)
       local result = Api:createJournalEntry(api_data)
